@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Heart,
   Menu,
@@ -55,9 +55,57 @@ export function SiteHeader() {
   const [searchTerm, setSearchTerm] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+  const [categoryMenuHover, setCategoryMenuHover] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
+  const catMenuRef = useRef<HTMLLIElement>(null);
+
+  // Close the Shop-by-Category menu when clicking outside or pressing Escape.
+  useEffect(() => {
+    const open = categoryMenuOpen || categoryMenuHover;
+    if (!open) return;
+
+    const onOutside = (e: MouseEvent) => {
+      if (catMenuRef.current && !catMenuRef.current.contains(e.target as Node)) {
+        setCategoryMenuOpen(false);
+        setCategoryMenuHover(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setCategoryMenuOpen(false);
+        setCategoryMenuHover(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onOutside);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [categoryMenuOpen, categoryMenuHover]);
+
+  // Keep the menu open while the cursor lingers between trigger and panel,
+  // and give the user a moment to move in without it flickering closed.
+  const catCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openCategoryMenu = () => {
+    if (catCloseTimer.current) clearTimeout(catCloseTimer.current);
+    setCategoryMenuHover(true);
+    setCategoryMenuOpen(true);
+  };
+  const closeCategoryMenu = () => {
+    if (catCloseTimer.current) clearTimeout(catCloseTimer.current);
+    // Short grace period so crossing from the trigger into the panel does
+    // not cause flicker. Once the cursor leaves the whole menu region it
+    // closes. Click-outside and Escape close it immediately as well.
+    catCloseTimer.current = setTimeout(() => {
+      setCategoryMenuHover(false);
+      setCategoryMenuOpen(false);
+    }, 150);
+  };
 
   const { data: searchResults } = useProducts({
     search: searchTerm || undefined,
@@ -241,56 +289,104 @@ export function SiteHeader() {
                 </TopLink>
               ))}
 
-              <li className="group relative">
-                <button className="flex items-center gap-1 py-3 text-[11px] tracking-[0.2em] text-navy uppercase">
-                  Shop by Category
-
-                  <ChevronDown className="size-3.5 transition-transform duration-300 group-hover:rotate-180" />
-                </button>
-
-                {/* Category Mega Menu */}
-                <div
+              <li
+                ref={catMenuRef}
+                className="relative"
+                onMouseEnter={openCategoryMenu}
+                onMouseLeave={closeCategoryMenu}
+              >
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={categoryMenuOpen}
+                  onClick={() =>
+                    categoryMenuOpen
+                      ? setCategoryMenuOpen(false)
+                      : openCategoryMenu()
+                  }
                   className={cn(
-                    "invisible absolute top-full left-1/2 z-50",
-                    "w-[min(72rem,calc(100vw-2rem))]",
-                    "-translate-x-1/2 translate-y-2",
-                    "opacity-0 transition-all duration-300",
-                    "group-hover:visible group-hover:translate-y-0 group-hover:opacity-100",
+                    "flex items-center gap-1.5 py-3 text-[11px] tracking-[0.2em] text-navy uppercase transition-colors",
+                    categoryMenuOpen && "text-gold-dark",
                   )}
                 >
-                  <div className="border-t border-navy/10 bg-white p-6 shadow-[0_20px_50px_-25px_rgba(16,38,80,0.35)]">
-                    <div className="grid grid-cols-6 gap-4">
-                      {categories.map((category) => (
-                        <Link
-                          key={category.id || category.slug}
-                          to={`/category/${category.slug}`}
-                          className="group/item min-w-0"
-                        >
-                          {/* Category Image */}
-                          <div className="aspect-[4/3] overflow-hidden bg-[#fdeDEE]">
-                            {category.imageUrl ? (
-                              <img
-                                src={category.imageUrl}
-                                alt={category.name}
-                                className="h-full w-full object-cover transition-transform duration-500 group-hover/item:scale-105"
-                              />
-                            ) : (
-                              <div className="flex h-full items-center justify-center bg-[#fdeDEE]">
-                                <span className="px-2 text-center font-display text-sm text-navy/40">
-                                  {category.name}
-                                </span>
-                              </div>
-                            )}
-                          </div>
+                  Shop by Category
 
-                          {/* Category Name */}
-                          <div className="pt-3">
-                            <p className="text-[11px] font-medium tracking-[0.2em] text-navy uppercase">
+                  <ChevronDown
+                    className={cn(
+                      "size-3.5 transition-transform duration-300",
+                      categoryMenuOpen && "rotate-180",
+                    )}
+                  />
+                </button>
+
+                {/* Shop by Category — floating opaque panel */}
+                <div
+                  aria-hidden={!categoryMenuOpen}
+                  className={cn(
+                    "pointer-events-none absolute top-full left-1/2 z-[60] opacity-0 transition-all duration-300",
+                    "-translate-x-1/2 translate-y-2",
+                    categoryMenuOpen &&
+                      "pointer-events-auto translate-y-0 opacity-100",
+                  )}
+                >
+                  <div className="mt-2 w-[min(76rem,calc(100vw-2rem))] overflow-hidden rounded-sm border border-navy/15 bg-[#fffaf7] shadow-[0_28px_70px_-30px_rgba(16,38,80,0.5)]">
+                    <div className="grid grid-cols-2 gap-x-10 gap-y-0 border-b border-navy/10 p-8 sm:grid-cols-4 lg:grid-cols-5">
+                      {/* Primary shop link */}
+                      <div>
+                        <p className="eyebrow text-gold-dark">Browse</p>
+                        <div className="mt-3 space-y-2.5">
+                          <Link
+                            to="/products"
+                            onClick={() => setCategoryMenuOpen(false)}
+                            className="block text-[13px] text-navy transition-colors hover:text-gold-dark"
+                          >
+                            All Jewellery
+                          </Link>
+                          <Link
+                            to="/products?occasion=bridal"
+                            onClick={() => setCategoryMenuOpen(false)}
+                            className="block text-[13px] text-navy transition-colors hover:text-gold-dark"
+                          >
+                            Bridal
+                          </Link>
+                        </div>
+                      </div>
+
+                      {/* Dynamic categories from the backend */}
+                      {categories
+                        .filter((c) => c.isActive)
+                        .slice(0, 4)
+                        .map((category) => (
+                          <div key={category.id || category.slug}>
+                            <p className="eyebrow text-gold-dark">
                               {category.name}
                             </p>
+                            <div className="mt-3 space-y-2.5">
+                              <Link
+                                key={category.id + "-all"}
+                                to={`/category/${category.slug}`}
+                                onClick={() => setCategoryMenuOpen(false)}
+                                className="block text-[13px] text-navy transition-colors hover:text-gold-dark"
+                              >
+                                Shop {category.name}
+                              </Link>
+                            </div>
                           </div>
-                        </Link>
                       ))}
+                    </div>
+
+                    {/* Footer strip — value messaging */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-[#fdf0ef] px-8 py-4">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-navy/60">
+                        Fine jewellery, crafted to be treasured
+                      </p>
+                      <Link
+                        to="/products"
+                        onClick={() => setCategoryMenuOpen(false)}
+                        className="text-[11px] uppercase tracking-[0.18em] text-gold-dark hover:text-navy"
+                      >
+                        Explore the collection →
+                      </Link>
                     </div>
                   </div>
                 </div>

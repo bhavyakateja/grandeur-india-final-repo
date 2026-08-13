@@ -1,5 +1,69 @@
 @import "tailwindcss";
 
+/* ============================================================
+   Grandeur India — Brand theme tokens (Tailwind v4)
+   Kept in sync with the existing palette used across the site.
+   ============================================================ */
+@theme {
+  --color-navy: #102650;
+  --color-navy-light: #172f5d;
+  --color-navy-foreground: #fdf6ea;
+
+  --color-gold: #c89a4b;
+  --color-gold-light: #e7c987;
+  --color-gold-dark: #a97e3a;
+
+  --color-blush: #fdf0ef;
+  --color-blush-dark: #f8dddd;
+  --color-blush-deep: #f1dedc;
+
+  --color-cream: #fffaf7;
+  --color-cream-soft: #fdf8f3;
+
+  --font-display: "Cormorant Garamond", "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+
+  /* ------------------------------------------------------------
+     shadcn/ui semantic tokens (Tailwind v4).
+     These power the floating surfaces (Select dropdown, Sheet,
+     Command palette, Dialog, Card, etc.). Before these were defined,
+     classes like bg-popover / border-border / text-muted had NO color
+     token, which made dropdowns render transparent and let page
+     content show through. Mapped onto the Grandeur palette.
+     ------------------------------------------------------------ */
+  --color-popover: #fffaf7;
+  --color-popover-foreground: #102650;
+
+  --color-card: #ffffff;
+  --color-card-foreground: #102650;
+
+  --color-muted: #f6f1eb;
+  --color-muted-foreground: #6b7280;
+
+  --color-accent: #fdf0ef;
+  --color-accent-foreground: #102650;
+
+  --color-primary: #102650;
+  --color-primary-foreground: #fdf6ea;
+
+  --color-secondary: #fdf0ef;
+  --color-secondary-foreground: #102650;
+
+  --color-border: rgba(16, 38, 80, 0.14);
+  --color-input: rgba(16, 38, 80, 0.2);
+  --color-ring: #c89a4b;
+
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius: 3px;
+
+  --shadow-sm: 0 2px 8px -6px rgba(16, 38, 80, 0.3);
+  --shadow-md: 0 8px 28px -16px rgba(16, 38, 80, 0.35);
+  --shadow-lg: 0 24px 60px -30px rgba(16, 38, 80, 0.45);
+}
+
 :root {
   --background: #ffffff;
   --foreground: #102650;
@@ -59,4 +123,241 @@ button {
 ::selection {
   background: var(--blush-dark);
   color: var(--navy);
+}
+
+/* ============================================================
+   Grandeur India — shared brand component styles
+   ============================================================ */
+
+/* Small caps eyebrow label used across section headers */
+.eyebrow {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+}
+
+/* Thin gold divider rule used to punctuate premium headings */
+.gold-rule {
+  height: 1px;
+  width: 4rem;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+/* ============================================================
+   Luxury Authentication Modal
+   ============================================================ */
+
+/* Backdrop: a subtle navy-tinted scrim so the page stays legible
+   while the modal reads as clearly foregrounded and opaque. */
+.auth-backdrop {
+  background: rgba(16, 38, 80, 0.35);
+}
+
+/* Modal surface: warm ivory card with an elegant thin border,
+   refined shadow and restrained radius. */
+.auth-modal {
+  border: 1px solid rgba(200, 154, 75, 0.35);
+  background: linear-gradient(180deg, #fffdfa 0%, #fffaf7 55%, #fdf6ee 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 24px 60px -26px rgba(16, 38, 80, 0.45),
+    0 4px 14px -6px rgba(16, 38, 80, 0.18);
+}
+
+/* Gold hairline beneath the modal title */
+.auth-title-rule {
+  height: 2px;
+  width: 56px;
+  margin-left: auto;
+  margin-right: auto;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+
+/* Two-tab authentication switch, elegant underline style */
+.auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  border-bottom: 1px solid rgba(16, 38, 80, 0.12);
+}
+
+.auth-tab {
+  position: relative;
+  padding: 12px 4px 13px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  text-align: center;
+  color: rgba(16, 38, 80, 0.55);
+  background-color: transparent;
+  transition: color 0.2s ease, font-weight 0.2s ease;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.auth-tab:hover {
+  color: var(--navy);
+  background-color: transparent;
+}
+
+.auth-tab[data-state="active"] {
+  color: var(--navy);
+  background-color: transparent;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+/* Gold underline that sits on the bottom border of the tabs row */
+.auth-tab::after {
+  content: "";
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  bottom: -1px;
+  height: 2px;
+  background: transparent;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.28s ease, background-color 0.28s ease;
+}
+
+.auth-tab[data-state="active"]::after {
+  background: var(--gold);
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+/* Elegant primary action button (navy with gold hover accent) */
+.auth-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 50px;
+  padding: 0 20px;
+  border-radius: 2px;
+  background: var(--navy);
+  color: #fdf6ea;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  transition: background-color 0.25s ease, box-shadow 0.25s ease, transform 0.1s ease;
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: var(--gold-dark);
+  box-shadow: 0 10px 24px -14px rgba(200, 154, 75, 0.9);
+}
+
+.auth-submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.auth-submit:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Field label */
+.auth-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(16, 38, 80, 0.75);
+}
+
+/* Elegant thin input */
+.auth-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid rgba(16, 38, 80, 0.18);
+  border-radius: 2px;
+  background: #ffffff;
+  color: var(--navy);
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.auth-input::placeholder {
+  color: rgba(16, 38, 80, 0.4);
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(200, 154, 75, 0.16);
+}
+
+.auth-input[aria-invalid="true"] {
+  border-color: #b3332d;
+}
+
+.auth-error {
+  margin-top: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #b3332d;
+}
+
+/* Password visibility toggle */
+.auth-password-wrap {
+  position: relative;
+}
+
+.auth-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: rgba(16, 38, 80, 0.5);
+  transition: color 0.2s ease;
+}
+
+.auth-password-toggle:hover {
+  color: var(--navy);
+}
+
+.auth-password-wrap .auth-input {
+  padding-right: 44px;
+}
+
+/* Modal footer helper text */
+.auth-footnote {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(16, 38, 80, 0.6);
+}
+
+.auth-footnote button {
+  color: var(--navy);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s ease;
+}
+
+.auth-footnote button:hover {
+  color: var(--gold-dark);
 }

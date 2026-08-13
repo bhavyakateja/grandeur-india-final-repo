@@ -2,6 +2,8 @@ FROM oven/bun:1.2.21 AS base
 
 WORKDIR /app
 
+RUN apt-get update -y && apt-get install -y openssl wget && rm -rf /var/lib/apt/lists/*
+
 COPY package.json bun.lock ./
 
 RUN bun install --frozen-lockfile
@@ -15,6 +17,6 @@ ENV NODE_ENV=production
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-CMD wget --spider -q http://localhost:3000/health || exit 1
+CMD wget --spider -q http://localhost:3000/live || exit 1
 
 CMD ["bun","run","src/server.ts"]
