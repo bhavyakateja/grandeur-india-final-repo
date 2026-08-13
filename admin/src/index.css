@@ -1,0 +1,7 @@
+@import "../styles/globals.css";
+
+@layer base {
+  :root { @apply font-sans; }
+  body { @apply m-0 min-w-[320px] min-h-screen bg-background text-foreground antialiased; }
+  button, input, select, textarea { font: inherit; }
+}

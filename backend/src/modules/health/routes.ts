@@ -1,0 +1,1 @@
+export { healthController as healthRouter } from "./controller";

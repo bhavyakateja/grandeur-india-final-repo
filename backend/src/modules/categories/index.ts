@@ -1,0 +1,1 @@
+export { categoryRouter } from "./routes";

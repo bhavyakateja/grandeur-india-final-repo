@@ -1,0 +1,6 @@
+import { Link } from "react-router-dom";
+import { Mail, MessageCircle } from "lucide-react";
+
+export default function ContactPage() {
+  return <div className="mx-auto max-w-3xl px-6 py-20 text-center"><p className="eyebrow text-gold">Contact</p><h1 className="mt-3 font-display text-5xl">How can we help?</h1><div className="gold-rule mx-auto mt-4" /><p className="mt-6 text-sm leading-7 text-muted-foreground">For account, order, payment or product questions, please use the support channel configured for your Grandeur India deployment. This storefront does not submit a pretend appointment request to an unconfigured backend.</p><div className="mt-10 grid gap-4 sm:grid-cols-2"><Link to="/profile" className="rounded-sm border border-border p-6 text-left hover:border-navy"><MessageCircle className="size-5 text-gold" /><h2 className="mt-3 font-display text-xl">Account & orders</h2><p className="mt-1 text-xs text-muted-foreground">View orders, addresses and account information.</p></Link><Link to="/products" className="rounded-sm border border-border p-6 text-left hover:border-navy"><Mail className="size-5 text-gold" /><h2 className="mt-3 font-display text-xl">Product catalogue</h2><p className="mt-1 text-xs text-muted-foreground">Browse current products, prices and availability.</p></Link></div></div>;
+}
