@@ -47,19 +47,14 @@ async function proxyApi(request: Request): Promise<Response> {
 
 const server = Bun.serve({
   port,
-  async fetch(request) {
-    const url = new URL(request.url);
-    if (url.pathname.startsWith("/api/")) {
-      return proxyApi(request);
-    }
-    // Everything else is the SPA.
-    return new Response(index, {
-      headers: { "Content-Type": "text/html" },
-    });
+  routes: {
+    "/api/*": proxyApi,
+    "/*": index,
   },
-  ...(process.env.NODE_ENV !== "production"
-    ? { development: { hmr: true, console: true } }
-    : {}),
+  development:
+    process.env.NODE_ENV !== "production"
+      ? { hmr: true, console: true }
+      : false,
 });
 
 console.log(`🚀 Admin server running at ${server.url}`);

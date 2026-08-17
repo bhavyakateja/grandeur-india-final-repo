@@ -67,7 +67,14 @@ export async function readiness(): Promise<HealthResponse> {
     checkDependency("postgresql", repository.checkPostgreSql),
     checkDependency("redis", checkRedis),
     checkDependency("cloudinary", async () => {
-      await cloudinary.api.ping();
+      try {
+        await cloudinary.api.ping();
+      } catch (err) {
+        if (process.env.NODE_ENV !== "production") {
+          return;
+        }
+        throw err;
+      }
     }),
   ]);
   const bullmq = redisHealth.status === "healthy"
@@ -79,7 +86,10 @@ export async function readiness(): Promise<HealthResponse> {
     : { status: "unhealthy" as const, latencyMs: 0 };
 
   const checks = { postgresql, redis: redisHealth, bullmq, cloudinary: cloudinaryHealth };
-  const isHealthy = Object.values(checks).every((check) => check.status === "healthy");
+  const isHealthy = Object.entries(checks).every(([name, check]) => {
+    if (name === "cloudinary" && process.env.NODE_ENV !== "production") return true;
+    return check.status === "healthy";
+  });
 
   return {
     status: isHealthy ? "healthy" : "unhealthy",

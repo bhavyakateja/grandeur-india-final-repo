@@ -21,6 +21,7 @@ export async function generateRefreshToken(
 ): Promise<string> {
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
+    .setJti(crypto.randomUUID())
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(refreshSecret);

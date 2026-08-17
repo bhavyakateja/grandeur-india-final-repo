@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.bun/
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+bun.lockb
+.system_generated/
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+*.Zone.Identifier
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

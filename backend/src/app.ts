@@ -40,6 +40,31 @@ app.route(
     metricsRouter
 );
 
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+app.get("/uploads/*", (c) => {
+  const relPath = c.req.path.replace(/^\/uploads\//, "");
+  const fullPath = join(process.cwd(), "public", "uploads", relPath);
+  if (!existsSync(fullPath)) {
+    return c.notFound();
+  }
+  const fileData = readFileSync(fullPath);
+  const ext = fullPath.split(".").pop()?.toLowerCase();
+  const mimeMap: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    gif: "image/gif",
+    svg: "image/svg+xml",
+  };
+  return c.body(fileData, 200, {
+    "Content-Type": mimeMap[ext || ""] || "application/octet-stream",
+    "Cache-Control": "public, max-age=86400",
+  });
+});
+
 app.route("/api/v1", routes);
 
 app.route(
