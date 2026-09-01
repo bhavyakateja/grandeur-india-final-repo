@@ -505,9 +505,14 @@ export async function refundPayment(
     );
   }
 
+  // Convert Decimal rupees to integer paise without floating-point arithmetic.
+  const amountStr = payment.amount.toFixed(2);
+  const [whole, fractional = ""] = amountStr.split(".");
+  const paise = Number(BigInt(whole!) * 100n + BigInt(`${fractional}00`.slice(0, 2)));
+
   await razorpayProvider.refund(
     payment.providerPaymentId,
-    Number(payment.amount),
+    paise,
   );
 
   const cancelOrder =

@@ -41,6 +41,7 @@ const PRICE_BOUNDS: { min: number; max?: number }[] = [
 
 function priceForBucket(index: number, p: number): boolean {
   const b = PRICE_BOUNDS[index];
+  if (!b) return false;
   if (b.max === undefined) return p >= b.min;
   return p >= b.min && p < b.max;
 }

@@ -88,6 +88,9 @@ export async function apiRequest<T>(
 
   const data = await parseBody(response);
   if (!response.ok) throw new ApiError(messageFor(response.status, data), response.status, data);
+  if (data && typeof data === "object" && "success" in data && "data" in data) {
+    return (data as { data: T }).data;
+  }
   return data as T;
 }
 

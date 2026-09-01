@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { MapPin, Package, Pencil, Trash2, User, Heart, LogOut } from "lucide-react";
+import { MapPin, Package, Pencil, Trash2, User, Heart, LogOut, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { formatINR } from "@/lib/utils";
 import { useStore, type Address } from "@/lib/store";
@@ -11,6 +11,7 @@ import { AddressForm } from "@/routes/checkout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getApiBaseUrl, getAccessToken } from "@/lib/api";
 
 
 
@@ -44,6 +45,30 @@ function ProfilePage() {
     await logout();
     toast.success("Signed out successfully");
     navigate("/");
+  };
+
+  const downloadInvoice = async (orderId: string, orderNumber: string) => {
+    try {
+      const token = getAccessToken();
+      const headers = new Headers();
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      const res = await fetch(`${getApiBaseUrl()}/invoice/${orderId}`, {
+        headers,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Invoice not available yet.");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `invoice-${orderNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to download invoice");
+    }
   };
 
   return (
@@ -117,9 +142,20 @@ function ProfilePage() {
                     </li>
                   ))}
                 </ul>
-                <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
-                  <span className="text-sm text-muted-foreground">Order total</span>
-                  <span className="font-display text-xl">{formatINR(o.total)}</span>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+                  <div>
+                    <span className="text-sm text-muted-foreground">Order total</span>
+                    <span className="ml-3 font-display text-xl">{formatINR(o.total)}</span>
+                  </div>
+                  {o.paymentStatus === "PAID" && (
+                    <button
+                      type="button"
+                      onClick={() => void downloadInvoice(o.orderId, o.orderNumber)}
+                      className="flex items-center gap-1.5 text-xs uppercase tracking-[0.14em] text-navy transition-colors hover:text-gold"
+                    >
+                      <FileDown className="size-4" /> Download Invoice
+                    </button>
+                  )}
                 </div>
               </article>
             ))

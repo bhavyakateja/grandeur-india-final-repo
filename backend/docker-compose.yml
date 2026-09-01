@@ -120,32 +120,6 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
-
-    restart: unless-stopped
-
-    env_file:
-      - .env
-
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-      redis:
-        condition: service_healthy
-
-      api:
-        condition: service_healthy
-
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
-
 volumes:
   postgres_data:
   postgres_test_data:

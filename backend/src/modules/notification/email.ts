@@ -1,8 +1,6 @@
-import { Resend } from "resend";
+import { resend } from "../../config/resend";
 import { env } from "../../config/env";
 import { InternalServerException } from "../../exceptions/InternalServerException";
-
-const resend = new Resend(env.RESEND_API_KEY);
 
 export interface SendEmailInput {
   to: string;

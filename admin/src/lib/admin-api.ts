@@ -5,7 +5,7 @@ export type ProductStatus = "DRAFT" | "ACTIVE" | "OUT_OF_STOCK" | "ARCHIVED";
 export type OrderStatus = "PENDING" | "CONFIRMED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
 export type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
-export type PaymentProvider = "RAZORPAY" | "STRIPE";
+export type PaymentProvider = "RAZORPAY";
 
 export interface Category { id: string; name: string; slug: string; isActive: boolean; products?: Product[] }
 export interface ProductImage { id: string; url: string; publicId: string; isPrimary: boolean; createdAt: string; productId: string }
@@ -53,6 +53,27 @@ export interface Payment {
   user: { id: string; name: string; email: string }; order?: { id: string; orderNumber: string; status: OrderStatus; paymentStatus: PaymentStatus } | null;
 }
 export interface NotificationResult { success: boolean }
+export interface StoreSettings {
+  id: string;
+  currency: string;
+  gstRate: number;
+  freeShippingThreshold: number;
+  defaultShippingCharge: number;
+  codEnabled: boolean;
+  internationalShippingEnabled: boolean;
+  storeEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface UpdateSettingsInput {
+  currency?: string;
+  gstRate?: number;
+  freeShippingThreshold?: number;
+  defaultShippingCharge?: number;
+  codEnabled?: boolean;
+  internationalShippingEnabled?: boolean;
+  storeEnabled?: boolean;
+}
 
 function query(params: Record<string, string | number | boolean | undefined>) {
   const s = new URLSearchParams();
@@ -120,10 +141,13 @@ export const adminApi = {
   refundPayment: (id: string, reason?: string) =>
     apiRequest<{ success: boolean; alreadyRefunded: boolean; payment: Payment; order?: AdminOrder | null }>(`/admin/payments/${id}/refund`, { method: "POST", body: JSON.stringify({ reason }) }),
 
-  sendEmail: (to: string, subject: string, message: string) =>
-    apiRequest<NotificationResult>("/notifications/email", { method: "POST", body: JSON.stringify({ to, subject, message }) }),
-  sendSms: (to: string, message: string) =>
-    apiRequest<NotificationResult>("/notifications/sms", { method: "POST", body: JSON.stringify({ to, message }) }),
-  sendPush: (to: string, message: string) =>
-    apiRequest<NotificationResult>("/notifications/push", { method: "POST", body: JSON.stringify({ to, message }) }),
+  settings: () => apiRequest<StoreSettings>("/settings"),
+  updateSettings: (data: UpdateSettingsInput) =>
+    apiRequest<StoreSettings>("/settings", { method: "PATCH", body: JSON.stringify(data) }),
+
+  sendEmail: (to: string, subject: string, message: string, text?: string) =>
+    apiRequest<NotificationResult>("/notifications/email", {
+      method: "POST",
+      body: JSON.stringify({ to, subject, html: message, text: text || message }),
+    }),
 };

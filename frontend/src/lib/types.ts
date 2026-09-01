@@ -181,7 +181,7 @@ export interface CheckoutResponse {
 
 export interface CreatePaymentResponse {
   paymentId: string;
-  provider: "RAZORPAY" | "STRIPE";
+  provider: "RAZORPAY";
   providerOrderId: string;
   amount: number | string;
   currency: string;
@@ -197,4 +197,18 @@ export interface ApplyCouponResponse {
   total: number | string;
 }
 
+export interface StoreSettings {
+  id: string;
+  currency: string;
+  gstRate: number;
+  freeShippingThreshold: number;
+  defaultShippingCharge: number;
+  codEnabled: boolean;
+  internationalShippingEnabled: boolean;
+  storeEnabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface ApiMessage { success: boolean; message: string; }
+

@@ -15,6 +15,7 @@ import type {
   ProductQueryParams,
   Review,
   WishlistItem,
+  StoreSettings,
 } from "@/lib/types";
 import { apiRequest, asArray } from "@/lib/api";
 
@@ -78,11 +79,28 @@ export function useProducts(params: ProductQueryParams = {}) {
     queryKey: API_KEYS.products(params),
 
     queryFn: async (): Promise<ProductListResponse> => {
-      const response = await apiRequest<ProductListResponse | unknown>(
+      const response = await apiRequest<any>(
         `/products${queryString(params)}`
       );
 
-      return response as ProductListResponse;
+      if (response && Array.isArray(response.items)) {
+        return {
+          products: response.items,
+          total: response.pagination?.total ?? response.items.length,
+        };
+      }
+
+      if (response && Array.isArray(response.products)) {
+        return {
+          products: response.products,
+          total: response.total ?? response.products.length,
+        };
+      }
+
+      return {
+        products: [],
+        total: 0,
+      };
     },
 
     staleTime: 30_000,
@@ -457,11 +475,18 @@ export function useCreateAddress() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: CreateAddressPayload) =>
-      apiRequest<Address>("/addresses", {
+    mutationFn: async (payload: CreateAddressPayload): Promise<Address> => {
+      const response = await apiRequest<{ data?: Address } | Address>("/addresses", {
         method: "POST",
         body: JSON.stringify(payload),
-      }),
+      });
+
+      if (response && typeof response === "object" && "data" in response && response.data) {
+        return response.data;
+      }
+
+      return response as Address;
+    },
 
     onSuccess: () => {
       qc.invalidateQueries({
@@ -475,17 +500,24 @@ export function useUpdateAddress() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       id,
       data,
     }: {
       id: string;
       data: Partial<CreateAddressPayload>;
-    }) =>
-      apiRequest<Address>(`/addresses/${id}`, {
+    }): Promise<Address> => {
+      const response = await apiRequest<{ data?: Address } | Address>(`/addresses/${id}`, {
         method: "PUT",
         body: JSON.stringify(data),
-      }),
+      });
+
+      if (response && typeof response === "object" && "data" in response && response.data) {
+        return response.data;
+      }
+
+      return response as Address;
+    },
 
     onSuccess: () => {
       qc.invalidateQueries({
@@ -587,14 +619,21 @@ export function useCancelOrder() {
 
 export function useCheckout() {
   return useMutation({
-    mutationFn: (payload: {
+    mutationFn: async (payload: {
       addressId: string;
       couponCode?: string;
-    }) =>
-      apiRequest<CheckoutResponse>("/checkout", {
+    }): Promise<CheckoutResponse> => {
+      const response = await apiRequest<{ success?: boolean; data?: CheckoutResponse } | CheckoutResponse>("/checkout", {
         method: "POST",
         body: JSON.stringify(payload),
-      }),
+      });
+
+      if (response && typeof response === "object" && "data" in response && response.data) {
+        return response.data;
+      }
+
+      return response as CheckoutResponse;
+    },
   });
 }
 
@@ -604,17 +643,24 @@ export function useCheckout() {
 
 export function useCreatePayment() {
   return useMutation({
-    mutationFn: (payload: {
+    mutationFn: async (payload: {
       addressId: string;
       couponCode?: string;
-    }) =>
-      apiRequest<CreatePaymentResponse>(
+    }): Promise<CreatePaymentResponse> => {
+      const response = await apiRequest<{ success?: boolean; data?: CreatePaymentResponse } | CreatePaymentResponse>(
         "/payments/create-order",
         {
           method: "POST",
           body: JSON.stringify(payload),
         }
-      ),
+      );
+
+      if (response && typeof response === "object" && "data" in response && response.data) {
+        return response.data;
+      }
+
+      return response as CreatePaymentResponse;
+    },
   });
 }
 
@@ -655,17 +701,49 @@ export function useVerifyPayment() {
 
 export function useApplyCoupon() {
   return useMutation({
-    mutationFn: (payload: {
+    mutationFn: async (payload: {
       code: string;
       subtotal: number;
-    }) =>
-      apiRequest<ApplyCouponResponse>(
+    }): Promise<ApplyCouponResponse> => {
+      const response = await apiRequest<any>(
         "/coupons/apply",
         {
           method: "POST",
           body: JSON.stringify(payload),
         }
-      ),
+      );
+
+      const raw = (response && typeof response === "object" && "data" in response && response.data)
+        ? response.data
+        : response;
+
+      return {
+        code: raw.coupon?.code ?? payload.code,
+        type: raw.coupon?.type ?? "FIXED",
+        value: raw.coupon?.value ?? 0,
+        discount: raw.discount ?? 0,
+        subtotal: payload.subtotal,
+        total: raw.finalAmount ?? Math.max(0, payload.subtotal - Number(raw.discount ?? 0)),
+      };
+    },
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/* Settings                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export function useSettings() {
+  return useQuery({
+    queryKey: ["settings"] as const,
+    queryFn: async (): Promise<StoreSettings> => {
+      const response = await apiRequest<{ success?: boolean; data?: StoreSettings } | StoreSettings>("/settings");
+      if (response && typeof response === "object" && "data" in response && response.data) {
+        return response.data;
+      }
+      return response as StoreSettings;
+    },
+    staleTime: 60_000,
   });
 }
 

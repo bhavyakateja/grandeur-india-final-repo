@@ -29,8 +29,9 @@ export interface PaymentGateway {
     paymentId: string,
   ): Promise<unknown>;
 
+  /** @param amountPaise — refund amount in smallest currency unit (paise). Omit for full refund. */
   refund(
     paymentId: string,
-    amount?: number,
+    amountPaise?: number,
   ): Promise<void>;
 }

@@ -28,6 +28,8 @@ settingsController.get(
         gstRate: settings.gstRate,
         freeShippingThreshold:
           settings.freeShippingThreshold,
+        defaultShippingCharge:
+          settings.defaultShippingCharge,
         codEnabled: settings.codEnabled,
         internationalShippingEnabled:
           settings.internationalShippingEnabled,
@@ -43,7 +45,7 @@ settingsController.get(
 settingsController.patch(
   "/",
   authMiddleware,
-  roleMiddleware("ADMIN"),
+  roleMiddleware("ADMIN", "SUPER_ADMIN"),
   zValidator(
     "json",
     updateSettingsSchema,

@@ -71,7 +71,7 @@ QUEUE_RETRY_DELAY_MS=1000
 
 ```text
 GET /live   # process liveness; no dependency calls
-GET /ready  # PostgreSQL, Redis, BullMQ, and Cloudinary readiness
+GET /ready  # PostgreSQL, Redis, and Cloudinary readiness
 GET /health # full dependency health summary
 ```
 
@@ -127,4 +127,4 @@ The authenticated admin API under `/api/v1/admin` now includes:
 
 Product/category/coupon/inventory/upload/notification admin operations remain protected on their existing module routes.
 
-Refunds are provider-backed using the configured Razorpay or Stripe provider. Delivered orders are intentionally excluded until a return workflow exists.
+Refunds are provider-backed using the configured Razorpay provider. Delivered orders are intentionally excluded until a return workflow exists.

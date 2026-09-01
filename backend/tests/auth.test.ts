@@ -98,19 +98,3 @@ describe("Authentication", () => {
     expect(res.status).toBe(401);
   });
 });
-
-import { randomEmail } from "./utils";
-
-const email = randomEmail();
-
-await app.request("/api/v1/auth/signup", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    name: "Bhavya",
-    email,
-    password: "Password@123",
-  }),
-});

@@ -87,16 +87,13 @@ export const razorpayProvider: PaymentGateway = {
 
   async refund(
     paymentId: string,
-    amount?: number,
+    amountPaise?: number,
   ): Promise<void> {
     try {
       await getClient().payments.refund(
         paymentId,
         {
-          amount:
-            amount !== undefined
-              ? Math.round(amount * 100)
-              : undefined,
+          amount: amountPaise,
         },
       );
     } catch {

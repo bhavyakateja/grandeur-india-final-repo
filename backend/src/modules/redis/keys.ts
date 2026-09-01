@@ -26,4 +26,7 @@ export const CacheKeys = {
 
     productRating: (productId: string) =>
         `product-rating:${productId}`,
+
+    settings: () =>
+        "store-settings",
 };

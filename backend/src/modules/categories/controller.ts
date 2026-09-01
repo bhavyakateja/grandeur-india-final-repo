@@ -20,7 +20,7 @@ export const categoryController = new Hono();
 categoryController.post(
   "/",
   authMiddleware,
-  roleMiddleware("ADMIN"),
+  roleMiddleware("ADMIN", "SUPER_ADMIN"),
   zValidator("json", createCategorySchema),
   async (c) => {
     const body = c.req.valid("json");
@@ -95,7 +95,7 @@ categoryController.get(
 categoryController.put(
   "/:id",
   authMiddleware,
-  roleMiddleware("ADMIN"),
+  roleMiddleware("ADMIN", "SUPER_ADMIN"),
   zValidator("json", updateCategorySchema),
   async (c) => {
     const id = c.req.param("id");
@@ -119,7 +119,7 @@ categoryController.put(
 categoryController.delete(
   "/:id",
   authMiddleware,
-  roleMiddleware("ADMIN"),
+  roleMiddleware("ADMIN", "SUPER_ADMIN"),
   async (c) => {
     const id = c.req.param("id");
 

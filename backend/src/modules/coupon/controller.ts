@@ -44,7 +44,7 @@ couponController.post(
  */
 couponController.post(
   "/",
-  roleMiddleware("ADMIN"),
+  roleMiddleware("ADMIN", "SUPER_ADMIN"),
   zValidator("json", createCouponSchema),
   async (c) => {
     const coupon = await service.create(
@@ -63,7 +63,7 @@ couponController.post(
 
 couponController.get(
   "/",
-  roleMiddleware("ADMIN"),
+  roleMiddleware("ADMIN", "SUPER_ADMIN"),
   async (c) => {
     const coupons = await service.findAll();
 
@@ -76,7 +76,7 @@ couponController.get(
 
 couponController.get(
   "/:id",
-  roleMiddleware("ADMIN"),
+  roleMiddleware("ADMIN", "SUPER_ADMIN"),
   async (c) => {
     const coupon = await service.findById(
       c.req.param("id"),
@@ -91,7 +91,7 @@ couponController.get(
 
 couponController.patch(
   "/:id",
-  roleMiddleware("ADMIN"),
+  roleMiddleware("ADMIN", "SUPER_ADMIN"),
   zValidator("json", updateCouponSchema),
   async (c) => {
     const coupon = await service.update(
@@ -108,7 +108,7 @@ couponController.patch(
 
 couponController.delete(
   "/:id",
-  roleMiddleware("ADMIN"),
+  roleMiddleware("ADMIN", "SUPER_ADMIN"),
   async (c) => {
     await service.remove(
       c.req.param("id"),

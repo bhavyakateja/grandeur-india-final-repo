@@ -5,7 +5,7 @@ import type { Product, Address as ApiAddress, Order as ApiOrder } from "@/lib/ty
 
 export type CartLine = { id: string; qty: number; itemId?: string; product?: Product };
 export type Address = { id: string; label?: string; name: string; phone: string; line1: string; city: string; state: string; pincode: string; isDefault: boolean };
-export type Order = { id: string; date: string; status: string; total: number; items: { id: string; name: string; qty: number; image?: string; price?: number }[] };
+export type Order = { id: string; orderId: string; orderNumber: string; paymentStatus: string; date: string; status: string; total: number; items: { id: string; name: string; qty: number; image?: string; price?: number }[] };
 
 type StoreContextType = {
   cart: CartLine[]; wishlist: string[]; addresses: Address[]; orders: Order[];
@@ -80,6 +80,9 @@ const orders = useMemo<Order[]>(
     isAuthenticated && Array.isArray(orderData)
       ? orderData.map((o: ApiOrder) => ({
           id: o.orderNumber || o.id,
+          orderId: o.id,
+          orderNumber: o.orderNumber || o.id,
+          paymentStatus: o.paymentStatus,
           date: new Date(o.createdAt).toLocaleDateString("en-IN", {
             day: "2-digit",
             month: "short",

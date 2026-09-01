@@ -9,7 +9,7 @@ export const userListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().min(1).optional(),
-  role: z.enum(["USER", "ADMIN"]).optional(),
+  role: z.enum(["USER", "ADMIN", "SUPER_ADMIN"]).optional(),
   isActive: z
     .enum(["true", "false"])
     .transform((value) => value === "true")
@@ -19,7 +19,7 @@ export const userListQuerySchema = z.object({
 export const updateUserSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
   email: z.string().trim().email().optional(),
-  role: z.enum(["USER", "ADMIN"]).optional(),
+  role: z.enum(["USER", "ADMIN", "SUPER_ADMIN"]).optional(),
   isActive: z.boolean().optional(),
   isVerified: z.boolean().optional(),
 });

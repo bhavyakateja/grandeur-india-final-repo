@@ -253,6 +253,19 @@ export async function createFromPayment(
     },
   );
 
+  // Invalidate product caches for all items whose stock was decremented.
+  if (result.created) {
+    const snapshot = snapshotFor(payment);
+    const { cache, CacheKeys } = await import("../redis");
+
+    await Promise.all([
+      ...snapshot.items.map((item) =>
+        cache.remove(CacheKeys.product(item.productId)),
+      ),
+      cache.clearPattern("products:*"),
+    ]);
+  }
+
   return result;
 }
 
