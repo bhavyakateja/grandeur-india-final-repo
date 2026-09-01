@@ -3,34 +3,58 @@ import { getCookie } from "hono/cookie";
 
 import * as authService from "./service";
 import { loginSchema, signupSchema } from "./schema";
-import { clearRefreshTokenCookie, setRefreshTokenCookie } from "../../shared/cookie";
+
+import {
+  clearRefreshTokenCookie,
+  setRefreshTokenCookie,
+} from "../../shared/cookie";
 
 function requestMeta(c: Context) {
   return {
     userAgent: c.req.header("User-Agent"),
-    ipAddress: c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() ?? c.req.header("X-Real-IP"),
+    ipAddress:
+      c.req
+        .header("X-Forwarded-For")
+        ?.split(",")[0]
+        ?.trim() ??
+      c.req.header("X-Real-IP"),
   };
 }
 
 export async function signup(c: Context) {
-  const body = await c.req.json();
-  const data = signupSchema.parse(body);
-  const response = await authService.signup(data, requestMeta(c));
+  const data = signupSchema.parse(await c.req.json());
 
-  setRefreshTokenCookie(c, response.tokens.refreshToken);
+  const response = await authService.signup(
+    data,
+    requestMeta(c),
+  );
 
-  return c.json({
-    user: response.user,
-    accessToken: response.tokens.accessToken,
-  }, 201);
+  setRefreshTokenCookie(
+    c,
+    response.tokens.refreshToken,
+  );
+
+  return c.json(
+    {
+      user: response.user,
+      accessToken: response.tokens.accessToken,
+    },
+    201,
+  );
 }
 
 export async function login(c: Context) {
-  const body = await c.req.json();
-  const data = loginSchema.parse(body);
-  const response = await authService.login(data, requestMeta(c));
+  const data = loginSchema.parse(await c.req.json());
 
-  setRefreshTokenCookie(c, response.tokens.refreshToken);
+  const response = await authService.login(
+    data,
+    requestMeta(c),
+  );
+
+  setRefreshTokenCookie(
+    c,
+    response.tokens.refreshToken,
+  );
 
   return c.json({
     user: response.user,
@@ -42,12 +66,24 @@ export async function refresh(c: Context) {
   const refreshToken = getCookie(c, "refreshToken");
 
   if (!refreshToken) {
-    return c.json({ message: "Refresh token is missing" }, 401);
+    return c.json(
+      {
+        success: false,
+        message: "Refresh token is missing",
+      },
+      401,
+    );
   }
 
-  const response = await authService.refresh(refreshToken, requestMeta(c));
+  const response = await authService.refresh(
+    refreshToken,
+    requestMeta(c),
+  );
 
-  setRefreshTokenCookie(c, response.tokens.refreshToken);
+  setRefreshTokenCookie(
+    c,
+    response.tokens.refreshToken,
+  );
 
   return c.json({
     user: response.user,
@@ -57,7 +93,9 @@ export async function refresh(c: Context) {
 
 export async function logout(c: Context) {
   const refreshToken = getCookie(c, "refreshToken");
+
   await authService.logout(refreshToken);
+
   clearRefreshTokenCookie(c);
 
   return c.json({
@@ -68,6 +106,10 @@ export async function logout(c: Context) {
 
 export async function me(c: Context) {
   const user = c.get("user");
+
   const profile = await authService.me(user.id);
+
   return c.json(profile);
 }
+
+export { default as authRouter } from "./routes";

@@ -4,4 +4,7 @@ import { categoryController } from "./controller";
 
 export const categoryRouter = new Hono();
 
-categoryRouter.route("/", categoryController);
+categoryRouter.route(
+  "/",
+  categoryController,
+);

@@ -1,65 +1,94 @@
 import { prisma } from "../../db/prisma";
 import { Prisma } from "../../generated/prisma/client";
+
 import type { CategoryQuery } from "./schema";
 
-const categoryInclude = {
-  products: true,
-} satisfies Prisma.CategoryInclude;
+const categorySelect = {
+  id: true,
+  name: true,
+  slug: true,
+  imageUrl: true,
+  isActive: true,
+} satisfies Prisma.CategorySelect;
 
-export async function create(data: Prisma.CategoryCreateInput) {
+export function create(
+  data: Prisma.CategoryCreateInput,
+) {
   return prisma.category.create({
     data,
-    include: categoryInclude,
+    select: categorySelect,
   });
 }
 
-export async function findById(id: string) {
+export function findById(id: string) {
   return prisma.category.findUnique({
     where: { id },
-    include: categoryInclude,
+    select: {
+      ...categorySelect,
+      _count: {
+        select: {
+          products: true,
+        },
+      },
+    },
   });
 }
 
-export async function findBySlug(slug: string) {
+export function findBySlug(slug: string) {
   return prisma.category.findUnique({
     where: { slug },
+    select: categorySelect,
   });
 }
 
-export async function findAll(query: CategoryQuery) {
-  const { search } = query;
-
-  const where: Prisma.CategoryWhereInput = {};
-
-  if (search) {
-    where.name = {
-      contains: search,
-      mode: "insensitive",
-    };
-  }
+export function findAll(
+  query: CategoryQuery,
+) {
+  const where: Prisma.CategoryWhereInput = {
+    isActive: true,
+    ...(query.search
+      ? {
+          name: {
+            contains: query.search,
+            mode: "insensitive",
+          },
+        }
+      : {}),
+  };
 
   return prisma.category.findMany({
     where,
-    include: categoryInclude,
+    select: {
+      ...categorySelect,
+      _count: {
+        select: {
+          products: true,
+        },
+      },
+    },
     orderBy: {
       name: "asc",
     },
   });
 }
 
-export async function update(
+export function update(
   id: string,
-  data: Prisma.CategoryUpdateInput
+  data: Prisma.CategoryUpdateInput,
 ) {
   return prisma.category.update({
     where: { id },
     data,
-    include: categoryInclude,
+    select: categorySelect,
   });
 }
 
-export async function remove(id: string) {
-  return prisma.category.delete({
+export function deactivate(id: string) {
+  return prisma.category.update({
     where: { id },
+    data: {
+      isActive: false,
+    },
+    select: categorySelect,
   });
 }

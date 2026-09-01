@@ -1,52 +1,101 @@
+import { Prisma } from "../../generated/prisma/client";
+
 import * as repository from "./repository";
 
-import { Prisma } from "../../generated/prisma/client";
-import { NotFoundException } from "../../exceptions/NotFoundException";
-import { ConflictException } from "../../exceptions/ConflictException";
+import {
+  NotFoundException,
+} from "../../exceptions/NotFoundException";
+
+import {
+  ConflictException,
+} from "../../exceptions/ConflictException";
+
 import { cache, CacheKeys } from "../redis";
 
 import type {
+  CategoryQuery,
   CreateCategoryInput,
   UpdateCategoryInput,
-  CategoryQuery,
 } from "./schema";
 
-function createSlug(name: string) {
+function createSlug(name: string): string {
   return name
+    .normalize("NFKD")
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^\w-]+/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-export async function create(data: CreateCategoryInput) {
-  const slug = createSlug(data.name);
+async function invalidateCategoryCache(
+  id?: string,
+) {
+  const tasks: Promise<unknown>[] = [
+    cache.clearPattern("categories*"),
+    cache.clearPattern("products:*"),
+  ];
 
-  const existing = await repository.findBySlug(slug);
-
-  if (existing) {
-    throw new ConflictException("Category already exists");
+  if (id) {
+    tasks.push(
+      cache.remove(
+        CacheKeys.category(id),
+      ),
+    );
   }
 
-  const category = await repository.create({
-    name: data.name,
-    slug,
-    imageUrl: data.imageUrl,
-    isActive: data.isActive,
-  });
-  await cache.clearPattern("categories*");
+  await Promise.all(tasks);
+}
+
+export async function create(
+  data: CreateCategoryInput,
+) {
+  const slug = createSlug(data.name);
+
+  if (!slug) {
+    throw new ConflictException(
+      "Category name cannot produce a valid slug",
+    );
+  }
+
+  const existing =
+    await repository.findBySlug(slug);
+
+  if (existing) {
+    throw new ConflictException(
+      "Category already exists",
+    );
+  }
+
+  const category =
+    await repository.create({
+      name: data.name,
+      slug,
+      imageUrl: data.imageUrl,
+      isActive: data.isActive,
+    });
+
+  await invalidateCategoryCache();
+
   return category;
 }
 
-export async function getAll(query: CategoryQuery) {
+export function getAll(
+  query: CategoryQuery,
+) {
   return repository.findAll(query);
 }
 
-export async function getById(id: string) {
-  const category = await repository.findById(id);
+export async function getById(
+  id: string,
+) {
+  const category =
+    await repository.findById(id);
 
   if (!category) {
-    throw new NotFoundException("Category not found");
+    throw new NotFoundException(
+      "Category not found",
+    );
   }
 
   return category;
@@ -54,15 +103,36 @@ export async function getById(id: string) {
 
 export async function update(
   id: string,
-  data: UpdateCategoryInput
+  data: UpdateCategoryInput,
 ) {
   await getById(id);
 
-  const updateData: Prisma.CategoryUpdateInput = {};
+  const updateData: Prisma.CategoryUpdateInput =
+    {};
 
-  if (data.name) {
+  if (data.name !== undefined) {
+    const slug = createSlug(data.name);
+
+    if (!slug) {
+      throw new ConflictException(
+        "Category name cannot produce a valid slug",
+      );
+    }
+
+    const existing =
+      await repository.findBySlug(slug);
+
+    if (
+      existing &&
+      existing.id !== id
+    ) {
+      throw new ConflictException(
+        "Category slug already exists",
+      );
+    }
+
     updateData.name = data.name;
-    updateData.slug = createSlug(data.name);
+    updateData.slug = slug;
   }
 
   if (data.imageUrl !== undefined) {
@@ -73,15 +143,32 @@ export async function update(
     updateData.isActive = data.isActive;
   }
 
-  const category = await repository.update(id, updateData);
-  await Promise.all([cache.remove(CacheKeys.category(id)), cache.clearPattern("categories*"), cache.clearPattern("products:*")]);
+  if (
+    Object.keys(updateData).length === 0
+  ) {
+    return getById(id);
+  }
+
+  const category =
+    await repository.update(
+      id,
+      updateData,
+    );
+
+  await invalidateCategoryCache(id);
+
   return category;
 }
 
-export async function remove(id: string) {
+export async function remove(
+  id: string,
+) {
   await getById(id);
 
-  const category = await repository.remove(id);
-  await Promise.all([cache.remove(CacheKeys.category(id)), cache.clearPattern("categories*"), cache.clearPattern("products:*")]);
+  const category =
+    await repository.deactivate(id);
+
+  await invalidateCategoryCache(id);
+
   return category;
 }

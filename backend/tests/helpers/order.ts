@@ -9,11 +9,24 @@ export async function createOrder(
   userId: string,
   productId: string
 ) {
+  const payment = await prisma.payment.create({
+    data: {
+      userId,
+      provider: "RAZORPAY",
+      providerOrderId: `order_test_${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`,
+      amount: new Prisma.Decimal(1180),
+      currency: "INR",
+      status: PaymentStatus.PENDING,
+    },
+  });
+
   return prisma.order.create({
     data: {
       orderNumber: `ORD-${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
 
       userId,
+
+      paymentId: payment.id,
 
       paymentStatus: PaymentStatus.PENDING,
 

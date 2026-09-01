@@ -1,26 +1,24 @@
 import type { Context } from "hono";
-import { setCookie, deleteCookie } from "hono/cookie";
-
+import { deleteCookie, setCookie } from "hono/cookie";
 import { env } from "../config/env";
 
-const isProduction = env.NODE_ENV === "production";
-
 const REFRESH_COOKIE = "refreshToken";
+const REFRESH_TOKEN_MAX_AGE = 60 * 60 * 24 * 7;
 
 export function setRefreshTokenCookie(
   c: Context,
-  token: string
-) {
+  token: string,
+): void {
   setCookie(c, REFRESH_COOKIE, token, {
     httpOnly: true,
-    secure: isProduction,
+    secure: env.NODE_ENV === "production",
     sameSite: "Lax",
     path: "/api/v1/auth",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: REFRESH_TOKEN_MAX_AGE,
   });
 }
 
-export function clearRefreshTokenCookie(c: Context) {
+export function clearRefreshTokenCookie(c: Context): void {
   deleteCookie(c, REFRESH_COOKIE, {
     path: "/api/v1/auth",
   });

@@ -1,9 +1,7 @@
-import type { Coupon } from "../../generated/prisma/client";
+import type { Coupon, Prisma } from "../../generated/prisma/client";
 
 export interface ApplyCouponResult {
   coupon: Coupon;
-
-  discount: number;
-
-  finalAmount: number;
+  discount: Prisma.Decimal;
+  finalAmount: Prisma.Decimal;
 }

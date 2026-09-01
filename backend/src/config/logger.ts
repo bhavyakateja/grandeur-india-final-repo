@@ -1,14 +1,17 @@
 import pino, { type Logger, type LoggerOptions } from "pino";
+import { env } from "./env";
 
-const isDevelopment = process.env.NODE_ENV === "development";
-const level = process.env.LOG_LEVEL ?? (isDevelopment ? "debug" : "info");
+const isDevelopment = env.NODE_ENV === "development";
+const level = env.LOG_LEVEL;
 
 const options: LoggerOptions = {
   level,
+
   base: {
     service: "ecommerce-backend",
-    environment: process.env.NODE_ENV ?? "development",
+    environment: env.NODE_ENV,
   },
+
   redact: {
     censor: "[REDACTED]",
     paths: [
@@ -36,6 +39,7 @@ const options: LoggerOptions = {
       "*.secret",
     ],
   },
+
   serializers: {
     err: pino.stdSerializers.err,
     error: pino.stdSerializers.err,
@@ -55,5 +59,6 @@ if (isDevelopment) {
 
 export const logger: Logger = pino(options);
 
-export const createLogger = (bindings: Record<string, string | number | boolean | undefined>): Logger =>
-  logger.child(bindings);
+export const createLogger = (
+  bindings: Record<string, string | number | boolean | undefined>,
+): Logger => logger.child(bindings);

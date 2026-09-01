@@ -1,10 +1,9 @@
 import { redis } from "./client";
 import { logger } from "../../config/logger";
 import { cacheOperationDurationSeconds, cacheOperationsTotal } from "../metrics";
+import { env } from "../../config/env";
 
-const cacheNamespace = process.env.CACHE_NAMESPACE ?? "ecommerce";
-const cacheVersion = process.env.CACHE_VERSION ?? "v1";
-const cachePrefix = `${cacheNamespace}:${cacheVersion}:`;
+const cachePrefix = `${env.CACHE_NAMESPACE}:${env.CACHE_VERSION}:`;
 
 const observeCacheOperation = (operation: string, startedAt: number, result: "hit" | "miss" | "success" | "error") => {
     cacheOperationsTotal.inc({ operation, result });

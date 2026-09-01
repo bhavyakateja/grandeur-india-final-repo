@@ -1,1 +1,2 @@
-export * from "./routes";
+export { inventoryRouter } from "./routes";
+export * from "./types";

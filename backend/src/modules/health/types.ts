@@ -1,5 +1,11 @@
-export type DependencyName = "postgresql" | "redis" | "bullmq" | "cloudinary";
-export type HealthState = "healthy" | "unhealthy";
+export type DependencyName =
+  | "postgresql"
+  | "redis"
+  | "cloudinary";
+
+export type HealthState =
+  | "healthy"
+  | "unhealthy";
 
 export interface DependencyHealth {
   status: HealthState;

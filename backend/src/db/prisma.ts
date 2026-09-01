@@ -1,16 +1,17 @@
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
-import { createLogger } from "../modules/logger";
+import { env } from "../config/env";
+import { createLogger } from "../config/logger";
 
 const databaseLogger = createLogger({ component: "database" });
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL!,
+  connectionString: env.DATABASE_URL,
 });
 
 pool.on("error", (error) => {
-  databaseLogger.error({ error }, "PostgreSQL pool error");
+  databaseLogger.error({ err: error }, "PostgreSQL pool error");
 });
 
 const adapter = new PrismaPg(pool);
@@ -24,11 +25,11 @@ export const prisma =
   new PrismaClient({
     adapter,
     log:
-      process.env.NODE_ENV === "development"
+      env.NODE_ENV === "development"
         ? ["query", "info", "warn", "error"]
         : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
+if (env.NODE_ENV !== "production") {
   globalThis.prisma = prisma;
 }

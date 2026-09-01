@@ -5,9 +5,22 @@ const cartInclude = {
   items: {
     include: {
       product: {
-        include: {
-          images: true,
-          category: true,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          stock: true,
+          status: true,
+          images: {
+            where: {
+              isPrimary: true,
+            },
+            select: {
+              url: true,
+            },
+            take: 1,
+          },
         },
       },
     },
@@ -17,7 +30,9 @@ const cartInclude = {
   },
 } satisfies Prisma.CartInclude;
 
-export async function findByUserId(userId: string) {
+export function findByUserId(
+  userId: string,
+) {
   return prisma.cart.findUnique({
     where: {
       userId,
@@ -26,7 +41,7 @@ export async function findByUserId(userId: string) {
   });
 }
 
-export async function create(userId: string) {
+export function create(userId: string) {
   return prisma.cart.create({
     data: {
       user: {
@@ -39,9 +54,9 @@ export async function create(userId: string) {
   });
 }
 
-export async function findItem(
+export function findItem(
   cartId: string,
-  productId: string
+  productId: string,
 ) {
   return prisma.cartItem.findUnique({
     where: {
@@ -53,17 +68,43 @@ export async function findItem(
   });
 }
 
-export async function createItem(
-  data: Prisma.CartItemCreateInput
+export function findItemById(
+  id: string,
+) {
+  return prisma.cartItem.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      cart: {
+        select: {
+          id: true,
+          userId: true,
+        },
+      },
+      product: {
+        select: {
+          id: true,
+          price: true,
+          stock: true,
+          status: true,
+        },
+      },
+    },
+  });
+}
+
+export function createItem(
+  data: Prisma.CartItemCreateInput,
 ) {
   return prisma.cartItem.create({
     data,
   });
 }
 
-export async function updateItem(
+export function updateItem(
   id: string,
-  data: Prisma.CartItemUpdateInput
+  data: Prisma.CartItemUpdateInput,
 ) {
   return prisma.cartItem.update({
     where: {
@@ -73,19 +114,7 @@ export async function updateItem(
   });
 }
 
-export async function findItemById(id: string) {
-  return prisma.cartItem.findUnique({
-    where: {
-      id,
-    },
-    include: {
-      cart: true,
-      product: true,
-    },
-  });
-}
-
-export async function deleteItem(id: string) {
+export function deleteItem(id: string) {
   return prisma.cartItem.delete({
     where: {
       id,
@@ -93,10 +122,19 @@ export async function deleteItem(id: string) {
   });
 }
 
-export async function getProduct(productId: string) {
+export function getProduct(
+  productId: string,
+) {
   return prisma.product.findUnique({
     where: {
       id: productId,
+    },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      stock: true,
+      status: true,
     },
   });
 }

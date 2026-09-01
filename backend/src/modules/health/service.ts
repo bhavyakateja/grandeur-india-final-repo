@@ -1,15 +1,12 @@
 import cloudinary from "../../config/cloudinary";
 import Redis from "ioredis";
-import { createLogger } from "../logger";
-import { getEmailQueue } from "../queue/queues";
+import { env } from "../../config/env";
+import { createLogger } from "../../config/logger";
 import * as repository from "./repository";
 import type { DependencyHealth, DependencyName, HealthResponse, LivenessResponse } from "./types";
 
 const healthLogger = createLogger({ component: "health" });
-const configuredTimeoutMs = Number(process.env.HEALTH_CHECK_TIMEOUT_MS ?? 2_000);
-const timeoutMs = Number.isSafeInteger(configuredTimeoutMs) && configuredTimeoutMs > 0
-  ? configuredTimeoutMs
-  : 2_000;
+const timeoutMs = env.HEALTH_CHECK_TIMEOUT_MS;
 
 const withTimeout = async <T>(operation: Promise<T>, dependency: DependencyName): Promise<T> => {
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -43,9 +40,9 @@ const checkDependency = async (
 
 const checkRedis = async (): Promise<void> => {
   const client = new Redis({
-    host: process.env.REDIS_HOST,
-    port: Number(process.env.REDIS_PORT ?? 6_379),
-    password: process.env.REDIS_PASSWORD || undefined,
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD || undefined,
     lazyConnect: true,
     enableOfflineQueue: false,
     maxRetriesPerRequest: 0,
@@ -70,24 +67,21 @@ export async function readiness(): Promise<HealthResponse> {
       try {
         await cloudinary.api.ping();
       } catch (err) {
-        if (process.env.NODE_ENV !== "production") {
+        if (env.NODE_ENV !== "production") {
           return;
         }
         throw err;
       }
     }),
   ]);
-  const bullmq = redisHealth.status === "healthy"
-    ? await checkDependency("bullmq", async () => {
-        const queue = getEmailQueue();
-        await queue.waitUntilReady();
-        await queue.getJobCounts("waiting", "active", "delayed");
-      })
-    : { status: "unhealthy" as const, latencyMs: 0 };
 
-  const checks = { postgresql, redis: redisHealth, bullmq, cloudinary: cloudinaryHealth };
+  const checks = {
+    postgresql,
+    redis: redisHealth,
+    cloudinary: cloudinaryHealth,
+  };
   const isHealthy = Object.entries(checks).every(([name, check]) => {
-    if (name === "cloudinary" && process.env.NODE_ENV !== "production") return true;
+    if (name === "cloudinary" && env.NODE_ENV !== "production") return true;
     return check.status === "healthy";
   });
 

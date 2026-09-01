@@ -1,5 +1,5 @@
-import type { Role } from "../../generated/prisma/enums";
 import type { JWTPayload } from "jose";
+import type { Role } from "../../generated/prisma/enums";
 
 export interface JwtPayload extends JWTPayload {
   userId: string;

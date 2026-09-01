@@ -1,2 +1,1 @@
-
 export { adminRouter } from "./routes";

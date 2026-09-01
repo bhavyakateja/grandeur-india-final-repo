@@ -1,4 +1,5 @@
 import { cors } from "hono/cors";
+import { env } from "../../config/env";
 
 export const corsMiddleware = cors({
   origin: [
@@ -6,8 +7,8 @@ export const corsMiddleware = cors({
     "http://localhost:3001",
     "http://localhost:3002",
     "http://localhost:5173",
-    process.env.FRONTEND_URL ?? "",
-    process.env.ADMIN_FRONTEND_URL ?? "",
+    env.FRONTEND_URL ?? "",
+    env.ADMIN_FRONTEND_URL ?? "",
   ].filter(Boolean),
   credentials: true,
   allowMethods: [

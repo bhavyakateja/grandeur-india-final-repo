@@ -1,4 +1,8 @@
-import { SignJWT, jwtVerify, type JWTPayload } from "jose";
+import { randomUUID } from "node:crypto";
+import {
+  SignJWT,
+  jwtVerify,
+} from "jose";
 
 import { env } from "../config/env";
 import type { JwtPayload } from "../modules/auth/types";
@@ -7,9 +11,9 @@ const accessSecret = new TextEncoder().encode(env.JWT_SECRET);
 const refreshSecret = new TextEncoder().encode(env.JWT_REFRESH_SECRET);
 
 export async function generateAccessToken(
-  payload: JwtPayload
+  payload: JwtPayload,
 ): Promise<string> {
-  return await new SignJWT(payload)
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("15m")
@@ -17,28 +21,28 @@ export async function generateAccessToken(
 }
 
 export async function generateRefreshToken(
-  payload: JwtPayload
+  payload: JwtPayload,
 ): Promise<string> {
-  return await new SignJWT(payload)
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
-    .setJti(crypto.randomUUID())
+    .setJti(randomUUID())
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(refreshSecret);
 }
 
 export async function verifyAccessToken(
-  token: string
+  token: string,
 ): Promise<JwtPayload> {
   const { payload } = await jwtVerify(token, accessSecret);
 
-  return payload as JWTPayload & JwtPayload;
+  return payload as JwtPayload;
 }
 
 export async function verifyRefreshToken(
-  token: string
+  token: string,
 ): Promise<JwtPayload> {
   const { payload } = await jwtVerify(token, refreshSecret);
 
-  return payload as JWTPayload & JwtPayload;
+  return payload as JwtPayload;
 }

@@ -1,20 +1,17 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-
 import * as service from "./service";
-
 import {
   createAddressSchema,
   updateAddressSchema,
 } from "./schema";
-
 import { authMiddleware } from "../../middleware/authMiddleware";
+import { successResponse } from "../../shared/response";
 
 export const addressController = new Hono();
 
 addressController.use("*", authMiddleware);
 
-// Create Address
 addressController.post(
   "/",
   zValidator("json", createAddressSchema),
@@ -24,51 +21,57 @@ addressController.post(
 
     const address = await service.create(
       user.id,
-      body
+      body,
     );
 
-    return c.json(address, 201);
-  }
+    return successResponse(
+      c,
+      address,
+      "Address created successfully",
+      201,
+    );
+  },
 );
 
-// Get My Addresses
 addressController.get("/", async (c) => {
   const user = c.get("user");
 
   const addresses = await service.getAll(user.id);
 
-  return c.json(addresses);
+  return successResponse(c, addresses);
 });
 
-// Update Address
 addressController.put(
   "/:id",
   zValidator("json", updateAddressSchema),
   async (c) => {
     const user = c.get("user");
-    const id = c.req.param("id")!;
-
+    const id = c.req.param("id");
     const body = c.req.valid("json");
 
     const address = await service.update(
       id,
       user.id,
-      body
+      body,
     );
 
-    return c.json(address);
-  }
+    return successResponse(
+      c,
+      address,
+      "Address updated successfully",
+    );
+  },
 );
 
-// Delete Address
 addressController.delete("/:id", async (c) => {
   const user = c.get("user");
-  const id = c.req.param("id")!;
+  const id = c.req.param("id");
 
   await service.remove(id, user.id);
 
-  return c.json({
-    success: true,
-    message: "Address deleted successfully",
-  });
+  return successResponse(
+    c,
+    null,
+    "Address deleted successfully",
+  );
 });

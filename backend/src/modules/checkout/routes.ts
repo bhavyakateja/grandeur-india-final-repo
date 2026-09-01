@@ -4,4 +4,7 @@ import { checkoutController } from "./controller";
 
 export const checkoutRouter = new Hono();
 
-checkoutRouter.route("/", checkoutController);
+checkoutRouter.route(
+  "/",
+  checkoutController,
+);

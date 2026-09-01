@@ -1,8 +1,6 @@
+import { prisma } from "../../db/prisma";
 import * as repository from "./repository";
-
-import { Prisma } from "../../generated/prisma/client";
 import { NotFoundException } from "../../exceptions/NotFoundException";
-
 import type {
   CreateAddressInput,
   UpdateAddressInput,
@@ -10,27 +8,34 @@ import type {
 
 export async function create(
   userId: string,
-  data: CreateAddressInput
+  data: CreateAddressInput,
 ) {
-  if (data.isDefault) {
-    await repository.clearDefault(userId);
-  }
+  return prisma.$transaction(async () => {
+    const addressCount = await repository.countByUserId(userId);
 
-  return repository.create({
-    fullName: data.fullName,
-    phone: data.phone,
-    addressLine1: data.addressLine1,
-    addressLine2: data.addressLine2,
-    city: data.city,
-    state: data.state,
-    country: data.country,
-    postalCode: data.postalCode,
-    isDefault: data.isDefault,
-    user: {
-      connect: {
-        id: userId,
+    const isDefault =
+      data.isDefault || addressCount === 0;
+
+    if (isDefault) {
+      await repository.clearDefault(userId);
+    }
+
+    return repository.create({
+      fullName: data.fullName,
+      phone: data.phone,
+      addressLine1: data.addressLine1,
+      addressLine2: data.addressLine2 ?? null,
+      city: data.city,
+      state: data.state,
+      country: data.country,
+      postalCode: data.postalCode,
+      isDefault,
+      user: {
+        connect: {
+          id: userId,
+        },
       },
-    },
+    });
   });
 }
 
@@ -41,7 +46,7 @@ export async function getAll(userId: string) {
 export async function update(
   id: string,
   userId: string,
-  data: UpdateAddressInput
+  data: UpdateAddressInput,
 ) {
   const address = await repository.findById(id);
 
@@ -49,45 +54,54 @@ export async function update(
     throw new NotFoundException("Address not found");
   }
 
-  if (data.isDefault) {
-    await repository.clearDefault(userId);
-  }
+  return prisma.$transaction(async () => {
+    if (data.isDefault === true) {
+      await repository.clearDefault(userId);
+    }
 
-  const updateData: Prisma.AddressUpdateInput = {};
+    return repository.update(id, {
+      ...(data.fullName !== undefined && {
+        fullName: data.fullName,
+      }),
 
-  if (data.fullName !== undefined)
-    updateData.fullName = data.fullName;
+      ...(data.phone !== undefined && {
+        phone: data.phone,
+      }),
 
-  if (data.phone !== undefined)
-    updateData.phone = data.phone;
+      ...(data.addressLine1 !== undefined && {
+        addressLine1: data.addressLine1,
+      }),
 
-  if (data.addressLine1 !== undefined)
-    updateData.addressLine1 = data.addressLine1;
+      ...(data.addressLine2 !== undefined && {
+        addressLine2: data.addressLine2,
+      }),
 
-  if (data.addressLine2 !== undefined)
-    updateData.addressLine2 = data.addressLine2;
+      ...(data.city !== undefined && {
+        city: data.city,
+      }),
 
-  if (data.city !== undefined)
-    updateData.city = data.city;
+      ...(data.state !== undefined && {
+        state: data.state,
+      }),
 
-  if (data.state !== undefined)
-    updateData.state = data.state;
+      ...(data.country !== undefined && {
+        country: data.country,
+      }),
 
-  if (data.country !== undefined)
-    updateData.country = data.country;
+      ...(data.postalCode !== undefined && {
+        postalCode: data.postalCode,
+      }),
 
-  if (data.postalCode !== undefined)
-    updateData.postalCode = data.postalCode;
-
-  if (data.isDefault !== undefined)
-    updateData.isDefault = data.isDefault;
-
-  return repository.update(id, updateData);
+      ...(data.isDefault !== undefined && {
+        isDefault: data.isDefault,
+      }),
+    });
+  });
 }
 
 export async function remove(
   id: string,
-  userId: string
+  userId: string,
 ) {
   const address = await repository.findById(id);
 
@@ -95,5 +109,19 @@ export async function remove(
     throw new NotFoundException("Address not found");
   }
 
-  await repository.remove(id);
+  return prisma.$transaction(async () => {
+    await repository.remove(id);
+
+    if (address.isDefault) {
+      const replacement =
+        await repository.findReplacementDefault(
+          userId,
+          id,
+        );
+
+      if (replacement) {
+        await repository.setDefault(replacement.id);
+      }
+    }
+  });
 }

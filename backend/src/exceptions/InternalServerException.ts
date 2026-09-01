@@ -1,7 +1,7 @@
-export class InternalServerException extends Error {
-  status = 500;
+import { AppError } from "./AppError";
 
+export class InternalServerException extends AppError {
   constructor(message = "Internal Server Error") {
-    super(message);
+    super(message, 500);
   }
 }

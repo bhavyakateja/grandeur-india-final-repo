@@ -1,40 +1,39 @@
 import { prisma } from "../../db/prisma";
-import { Prisma } from "../../generated/prisma/client";
+import type { Prisma } from "../../generated/prisma/client";
 
-const addressInclude = {} satisfies Prisma.AddressInclude;
-
-export async function create(data: Prisma.AddressCreateInput) {
+export async function create(
+  data: Prisma.AddressCreateInput,
+) {
   return prisma.address.create({
     data,
-    include: addressInclude,
   });
 }
 
 export async function findById(id: string) {
   return prisma.address.findUnique({
     where: { id },
-    include: addressInclude,
   });
 }
 
 export async function findByUserId(userId: string) {
   return prisma.address.findMany({
-    where: {
-      userId,
-    },
+    where: { userId },
     orderBy: [
-      {
-        isDefault: "desc",
-      },
-      {
-        createdAt: "desc",
-      },
+      { isDefault: "desc" },
+      { createdAt: "desc" },
     ],
-    include: addressInclude,
   });
 }
 
-export async function clearDefault(userId: string) {
+export async function countByUserId(userId: string) {
+  return prisma.address.count({
+    where: { userId },
+  });
+}
+
+export async function clearDefault(
+  userId: string,
+) {
   return prisma.address.updateMany({
     where: {
       userId,
@@ -48,21 +47,40 @@ export async function clearDefault(userId: string) {
 
 export async function update(
   id: string,
-  data: Prisma.AddressUpdateInput
+  data: Prisma.AddressUpdateInput,
 ) {
   return prisma.address.update({
-    where: {
-      id,
-    },
+    where: { id },
     data,
-    include: addressInclude,
   });
 }
 
 export async function remove(id: string) {
   return prisma.address.delete({
+    where: { id },
+  });
+}
+
+export async function findReplacementDefault(
+  userId: string,
+  excludedId: string,
+) {
+  return prisma.address.findFirst({
     where: {
-      id,
+      userId,
+      id: { not: excludedId },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}
+
+export async function setDefault(id: string) {
+  return prisma.address.update({
+    where: { id },
+    data: {
+      isDefault: true,
     },
   });
 }

@@ -1,27 +1,31 @@
 import { Hono } from "hono";
 
 import * as service from "./service";
-
 import { authMiddleware } from "../../middleware/authMiddleware";
 
 export const invoiceController = new Hono();
 
 invoiceController.use("*", authMiddleware);
 
-invoiceController.post("/", async (c) => {
-  const body = await c.req.json();
+invoiceController.get("/:orderId", async (c) => {
+  const orderId = c.req.param("orderId");
+  const user = c.get("user");
 
-  const pdf = await service.generateInvoice(body);
-
-  c.header(
-    "Content-Type",
-    "application/pdf"
+  const invoice = await service.generateInvoice(
+    orderId,
+    user,
   );
+
+  c.header("Content-Type", "application/pdf");
 
   c.header(
     "Content-Disposition",
-    `attachment; filename=invoice.pdf`
+    `attachment; filename="${invoice.filename}"`,
   );
 
-  return c.body(pdf.buffer as ArrayBuffer);
+  return c.body(
+    new Uint8Array(invoice.pdf),
+  );
 });
+
+export { invoiceRouter } from "./routes";

@@ -1,1 +1,1 @@
-export * from "./routes";
+export { couponRouter } from "./routes";

@@ -1,19 +1,19 @@
 import Redis from "ioredis";
-import { logger } from "../logger";
+import { env } from "../../config/env";
+import { logger } from "../../config/logger";
 
 export const redis = new Redis({
-    host: process.env.REDIS_HOST,
-    port: Number(process.env.REDIS_PORT ?? 6379),
-    password:
-        process.env.REDIS_PASSWORD || undefined,
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD || undefined,
 
-    maxRetriesPerRequest: null,
+    maxRetriesPerRequest: 3,
 
     lazyConnect: true,
 });
 
 redis.on("connect", () => {
-    logger.info("Redis Connected");
+    logger.info("Redis connected");
 });
 
 redis.on("error", (err) => {

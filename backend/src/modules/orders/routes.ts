@@ -4,4 +4,7 @@ import { orderController } from "./controller";
 
 export const orderRouter = new Hono();
 
-orderRouter.route("/", orderController);
+orderRouter.route(
+  "/",
+  orderController,
+);

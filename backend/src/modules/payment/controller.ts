@@ -10,56 +10,91 @@ import {
 
 import { authMiddleware } from "../../middleware/authMiddleware";
 
-export const paymentController = new Hono();
+export const paymentController =
+  new Hono();
 
-// Keep provider webhooks public; authentication applies only to customer APIs.
-paymentController.use("/create-order", authMiddleware);
-paymentController.use("/verify", authMiddleware);
-paymentController.use("/:id", authMiddleware);
+/**
+ * Customer payment APIs require authentication.
+ *
+ * Webhooks remain public and are handled
+ * by webhookController.
+ */
+paymentController.use(
+  "/create-order",
+  authMiddleware,
+);
 
-// Create Payment
+paymentController.use(
+  "/verify",
+  authMiddleware,
+);
+
+paymentController.use(
+  "/:id",
+  authMiddleware,
+);
+
+/**
+ * Create Razorpay order.
+ */
 paymentController.post(
   "/create-order",
-  zValidator("json", createPaymentSchema),
+  zValidator(
+    "json",
+    createPaymentSchema,
+  ),
   async (c) => {
     const user = c.get("user");
     const body = c.req.valid("json");
 
-    const payment = await service.createPayment(
-      user.id,
-      body
-    );
+    const payment =
+      await service.createPayment(
+        user.id,
+        body,
+      );
 
     return c.json(payment, 201);
-  }
+  },
 );
 
-// Verify Payment
+/**
+ * Verify Razorpay payment.
+ */
 paymentController.post(
   "/verify",
-  zValidator("json", verifyPaymentSchema),
+  zValidator(
+    "json",
+    verifyPaymentSchema,
+  ),
   async (c) => {
     const user = c.get("user");
     const body = c.req.valid("json");
 
-    const order = await service.verifyPayment(
-      user.id,
-      body
-    );
+    const order =
+      await service.verifyPayment(
+        user.id,
+        body,
+      );
 
     return c.json(order);
-  }
+  },
 );
 
-// Get Payment
-paymentController.get("/:id", async (c) => {
-  const user = c.get("user");
-  const id = c.req.param("id");
+/**
+ * Get customer's payment.
+ */
+paymentController.get(
+  "/:id",
+  async (c) => {
+    const user = c.get("user");
+    const id = c.req.param("id");
 
-  const payment = await service.getPayment(
-    id,
-    user.id
-  );
+    const payment =
+      await service.getPayment(
+        id,
+        user.id,
+      );
 
-  return c.json(payment);
-});
+    return c.json(payment);
+  },
+);

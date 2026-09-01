@@ -1,32 +1,104 @@
 import { Hono } from "hono";
+
 import * as controller from "./controller";
+
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { roleMiddleware } from "../../middleware/roleMiddleware";
 
 export const adminRouter = new Hono();
 
 adminRouter.use("*", authMiddleware);
-adminRouter.use("*", roleMiddleware("ADMIN", "SUPER_ADMIN"));
+adminRouter.use(
+  "*",
+  roleMiddleware("ADMIN"),
+);
 
-adminRouter.get("/dashboard", controller.dashboard);
-adminRouter.get("/users", controller.listUsers);
-adminRouter.get("/users/:id", controller.getUser);
-adminRouter.patch("/users/:id", controller.updateUser);
-adminRouter.delete("/users/:id", controller.deleteUser);
+adminRouter.get(
+  "/dashboard",
+  controller.dashboard,
+);
 
-adminRouter.get("/orders", controller.listOrders);
-adminRouter.get("/orders/:id", controller.getOrder);
-adminRouter.patch("/orders/:id/status", controller.updateOrderStatus);
+adminRouter.get(
+  "/analytics",
+  controller.analytics,
+);
 
-adminRouter.get("/reviews", controller.listReviews);
-adminRouter.patch("/reviews/:id/status", controller.updateReviewStatus);
-adminRouter.delete("/reviews/:id", controller.deleteReview);
+// Users
+adminRouter.get(
+  "/users",
+  controller.listUsers,
+);
 
-adminRouter.post("/products/:productId/images", controller.attachProductImage);
-adminRouter.patch("/products/:productId/images/:imageId", controller.setPrimaryProductImage);
-adminRouter.delete("/products/:productId/images/:imageId", controller.deleteProductImage);
+adminRouter.get(
+  "/users/:id",
+  controller.getUser,
+);
 
-adminRouter.get("/payments", controller.listPayments);
-adminRouter.post("/payments/:id/refund", controller.refundPayment);
+adminRouter.patch(
+  "/users/:id",
+  controller.updateUser,
+);
 
-adminRouter.get("/analytics", controller.analytics);
+adminRouter.delete(
+  "/users/:id",
+  controller.deleteUser,
+);
+
+// Orders
+adminRouter.get(
+  "/orders",
+  controller.listOrders,
+);
+
+adminRouter.get(
+  "/orders/:id",
+  controller.getOrder,
+);
+
+adminRouter.patch(
+  "/orders/:id/status",
+  controller.updateOrderStatus,
+);
+
+// Reviews
+adminRouter.get(
+  "/reviews",
+  controller.listReviews,
+);
+
+adminRouter.patch(
+  "/reviews/:id/status",
+  controller.updateReviewStatus,
+);
+
+adminRouter.delete(
+  "/reviews/:id",
+  controller.deleteReview,
+);
+
+// Product images
+adminRouter.post(
+  "/products/:productId/images",
+  controller.attachProductImage,
+);
+
+adminRouter.patch(
+  "/products/:productId/images/:imageId",
+  controller.setPrimaryProductImage,
+);
+
+adminRouter.delete(
+  "/products/:productId/images/:imageId",
+  controller.deleteProductImage,
+);
+
+// Payments
+adminRouter.get(
+  "/payments",
+  controller.listPayments,
+);
+
+adminRouter.post(
+  "/payments/:id/refund",
+  controller.refundPayment,
+);

@@ -1,5 +1,6 @@
 import { prisma } from "../../db/prisma";
 import { Prisma } from "../../generated/prisma/client";
+
 import type {
   CreateCouponInput,
   UpdateCouponInput,
@@ -12,14 +13,19 @@ export function create(data: CreateCouponInput) {
       description: data.description,
       type: data.type,
       value: new Prisma.Decimal(data.value),
+
       minimumOrderAmount:
-        data.minimumOrderAmount !== undefined
+        data.minimumOrderAmount !== undefined &&
+        data.minimumOrderAmount !== null
           ? new Prisma.Decimal(data.minimumOrderAmount)
           : undefined,
+
       maximumDiscount:
-        data.maximumDiscount !== undefined
+        data.maximumDiscount !== undefined &&
+        data.maximumDiscount !== null
           ? new Prisma.Decimal(data.maximumDiscount)
           : undefined,
+
       usageLimit: data.usageLimit,
       startsAt: data.startsAt,
       expiresAt: data.expiresAt,
@@ -38,56 +44,69 @@ export function findAll() {
 
 export function findById(id: string) {
   return prisma.coupon.findUnique({
-    where: {
-      id,
-    },
+    where: { id },
   });
 }
 
 export function findByCode(code: string) {
   return prisma.coupon.findUnique({
-    where: {
-      code,
-    },
+    where: { code },
   });
 }
 
 export function update(
   id: string,
-  data: UpdateCouponInput
+  data: UpdateCouponInput,
 ) {
   return prisma.coupon.update({
-    where: {
-      id,
-    },
+    where: { id },
     data: {
-      ...(data.code && { code: data.code }),
+      ...(data.code !== undefined && {
+        code: data.code,
+      }),
+
       ...(data.description !== undefined && {
         description: data.description,
       }),
-      ...(data.type && { type: data.type }),
+
+      ...(data.type !== undefined && {
+        type: data.type,
+      }),
+
       ...(data.value !== undefined && {
         value: new Prisma.Decimal(data.value),
       }),
+
       ...(data.minimumOrderAmount !== undefined && {
-        minimumOrderAmount: new Prisma.Decimal(
-          data.minimumOrderAmount
-        ),
+        minimumOrderAmount:
+          data.minimumOrderAmount === null
+            ? null
+            : new Prisma.Decimal(
+                data.minimumOrderAmount,
+              ),
       }),
+
       ...(data.maximumDiscount !== undefined && {
-        maximumDiscount: new Prisma.Decimal(
-          data.maximumDiscount
-        ),
+        maximumDiscount:
+          data.maximumDiscount === null
+            ? null
+            : new Prisma.Decimal(
+                data.maximumDiscount,
+              ),
       }),
+
       ...(data.usageLimit !== undefined && {
         usageLimit: data.usageLimit,
       }),
+
       ...(data.startsAt !== undefined && {
         startsAt: data.startsAt,
       }),
+
       ...(data.expiresAt !== undefined && {
         expiresAt: data.expiresAt,
       }),
+
       ...(data.isActive !== undefined && {
         isActive: data.isActive,
       }),
@@ -95,42 +114,18 @@ export function update(
   });
 }
 
-export function remove(id: string) {
-  return prisma.coupon.delete({
-    where: {
-      id,
-    },
-  });
-}
-
-export function incrementUsage(couponId: string) {
+export function deactivate(id: string) {
   return prisma.coupon.update({
-    where: {
-      id: couponId,
-    },
+    where: { id },
     data: {
-      usedCount: {
-        increment: 1,
-      },
-    },
-  });
-}
-
-export function createUsage(
-  couponId: string,
-  userId: string
-) {
-  return prisma.couponUsage.create({
-    data: {
-      couponId,
-      userId,
+      isActive: false,
     },
   });
 }
 
 export function hasUserUsedCoupon(
   couponId: string,
-  userId: string
+  userId: string,
 ) {
   return prisma.couponUsage.findUnique({
     where: {
@@ -139,5 +134,58 @@ export function hasUserUsedCoupon(
         userId,
       },
     },
+  });
+}
+
+export async function consumeCoupon(
+  couponId: string,
+  userId: string,
+) {
+  return prisma.$transaction(async (tx) => {
+    const coupon = await tx.coupon.findUnique({
+      where: { id: couponId },
+    });
+
+    if (!coupon) {
+      throw new Error("Coupon not found");
+    }
+
+    const existing = await tx.couponUsage.findUnique({
+      where: {
+        couponId_userId: {
+          couponId,
+          userId,
+        },
+      },
+    });
+
+    if (existing) {
+      throw new Error("Coupon has already been used");
+    }
+
+    if (
+      coupon.usageLimit !== null &&
+      coupon.usedCount >= coupon.usageLimit
+    ) {
+      throw new Error("Coupon usage limit reached");
+    }
+
+    const usage = await tx.couponUsage.create({
+      data: {
+        couponId,
+        userId,
+      },
+    });
+
+    await tx.coupon.update({
+      where: { id: couponId },
+      data: {
+        usedCount: {
+          increment: 1,
+        },
+      },
+    });
+
+    return usage;
   });
 }

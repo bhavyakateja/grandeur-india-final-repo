@@ -1,23 +1,45 @@
+import {
+  OrderStatus,
+  PaymentStatus,
+  ReviewStatus,
+  type Role,
+} from "../../generated/prisma/client";
 
-import { OrderStatus, PaymentProvider, PaymentStatus, ReviewStatus, type Role } from "../../generated/prisma/client";
 import cloudinary from "../../config/cloudinary";
+import { cache, CacheKeys } from "../redis";
 import { razorpayProvider } from "../payment/providers/razorpay";
-import { stripeProvider } from "../payment/providers/stripe";
+
 import { BadRequestException } from "../../exceptions/BadRequestException";
 import { NotFoundException } from "../../exceptions/NotFoundException";
-import { cache, CacheKeys } from "../redis";
+
 import * as repository from "./repository";
+
 import type {
   AnalyticsQuery,
+  AttachProductImageInput,
   OrderListQuery,
+  PaymentListQuery,
+  RefundPaymentInput,
+  ReviewListQuery,
   UpdateOrderStatusInput,
+  UpdateReviewStatusInput,
+  UpdateUserInput,
   UserListQuery,
 } from "./schema";
 
-const allowedTransitions: Record<OrderStatus, readonly OrderStatus[]> = {
-  PENDING: ["CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["SHIPPED", "CANCELLED"],
-  SHIPPED: ["DELIVERED"],
+const allowedTransitions: Record<
+  OrderStatus,
+  readonly OrderStatus[]
+> = {
+  PENDING: [
+    OrderStatus.CONFIRMED,
+    OrderStatus.CANCELLED,
+  ],
+  CONFIRMED: [
+    OrderStatus.SHIPPED,
+    OrderStatus.CANCELLED,
+  ],
+  SHIPPED: [OrderStatus.DELIVERED],
   DELIVERED: [],
   CANCELLED: [],
 };
@@ -28,8 +50,86 @@ export function listUsers(query: UserListQuery) {
 
 export async function getUser(id: string) {
   const user = await repository.findUserById(id);
-  if (!user) throw new NotFoundException("User not found");
+
+  if (!user) {
+    throw new NotFoundException("User not found");
+  }
+
   return user;
+}
+
+export async function updateUser(
+  id: string,
+  input: UpdateUserInput,
+  actor: {
+    id: string;
+    role: Role;
+  },
+) {
+  const existing = await repository.findUserById(id);
+
+  if (!existing) {
+    throw new NotFoundException("User not found");
+  }
+
+  if (
+    actor.id === id &&
+    input.isActive === false
+  ) {
+    throw new BadRequestException(
+      "You cannot deactivate your own account",
+    );
+  }
+
+  if (
+    actor.role === "ADMIN" &&
+    existing.role === "ADMIN" &&
+    actor.id !== existing.id
+  ) {
+    throw new BadRequestException(
+      "You cannot modify another administrator",
+    );
+  }
+
+  if (
+    input.role === "ADMIN" &&
+    existing.role === "ADMIN" &&
+    actor.id !== existing.id
+  ) {
+    throw new BadRequestException(
+      "You cannot modify another administrator",
+    );
+  }
+
+  return repository.updateUser(id, input);
+}
+
+export async function deleteUser(
+  id: string,
+  actor: {
+    id: string;
+    role: Role;
+  },
+) {
+  const existing = await repository.findUserById(id);
+
+  if (!existing) {
+    throw new NotFoundException("User not found");
+  }
+
+  if (actor.id === id) {
+    throw new BadRequestException(
+      "You cannot deactivate your own account",
+    );
+  }
+
+  if (existing.role === "ADMIN") {
+    throw new BadRequestException(
+      "Administrator accounts cannot be deactivated here",
+    );
+  }
+
+  return repository.deactivateUser(id);
 }
 
 export function listOrders(query: OrderListQuery) {
@@ -38,206 +138,389 @@ export function listOrders(query: OrderListQuery) {
 
 export async function getOrder(id: string) {
   const order = await repository.findOrderById(id);
-  if (!order) throw new NotFoundException("Order not found");
+
+  if (!order) {
+    throw new NotFoundException("Order not found");
+  }
+
   return order;
 }
 
 export async function changeOrderStatus(
   id: string,
-  input: UpdateOrderStatusInput
+  input: UpdateOrderStatusInput,
 ) {
   const order = await getOrder(id);
   const next = input.status;
 
-  if (order.status === next) return order;
+  if (order.status === next) {
+    return order;
+  }
 
-  if (!allowedTransitions[order.status].includes(next)) {
+  if (
+    !(allowedTransitions[order.status] ?? []).includes(next)
+  ) {
     throw new BadRequestException(
-      `Invalid order status transition: ${order.status} -> ${next}`
+      `Invalid order status transition: ${order.status} -> ${next}`,
     );
   }
 
-  // A paid order cannot be cancelled until a real refund workflow exists.
-  if (next === OrderStatus.CANCELLED && order.paymentStatus === "PAID") {
+  if (
+    next === OrderStatus.CANCELLED &&
+    order.paymentStatus === PaymentStatus.PAID
+  ) {
     throw new BadRequestException(
-      "Paid orders cannot be cancelled until the refund workflow is implemented"
+      "Paid orders must be refunded before cancellation",
     );
   }
 
-  return repository.updateOrderStatus(id, next);
+  const updated = await repository.updateOrderStatus(
+    id,
+    next,
+  );
+
+  await cache.remove(CacheKeys.product("*"));
+
+  return updated;
 }
 
 export async function getDashboard() {
-  const [kpis, recentOrders, statusCounts, topProducts] = await Promise.all([
+  const [
+    kpis,
+    recentOrders,
+    statusCounts,
+    topProducts,
+  ] = await Promise.all([
     repository.dashboardKpis(),
     repository.recentOrders(10),
     repository.orderStatusCounts(),
-    repository.topSellingProducts(undefined, undefined, 10),
+    repository.topSellingProducts(
+      undefined,
+      undefined,
+      10,
+    ),
   ]);
 
   return {
     kpis,
     recentOrders,
-    orderStatusCounts: statusCounts.map((item) => ({
-      status: item.status,
-      count: item._count._all,
-    })),
-    topSellingProducts: topProducts.map((item) => ({
-      ...item,
-      quantitySold: Number(item.quantitySold),
-      revenue: Number(item.revenue),
-    })),
+    orderStatusCounts: statusCounts.map(
+      (item) => ({
+        status: item.status,
+        count: item._count._all,
+      }),
+    ),
+    topSellingProducts: topProducts.map(
+      (item) => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantitySold: Number(item.quantitySold),
+        revenue: item.revenue.toString(),
+      }),
+    ),
   };
 }
 
-export async function getAnalytics(query: AnalyticsQuery) {
+export async function getAnalytics(
+  query: AnalyticsQuery,
+) {
   const to = query.to ?? new Date();
+
   const from =
     query.from ??
-    new Date(to.getTime() - 29 * 24 * 60 * 60 * 1000);
+    new Date(
+      to.getTime() -
+      29 * 24 * 60 * 60 * 1000,
+    );
 
-  if (from > to) {
-    throw new BadRequestException("Analytics 'from' date must be before 'to' date");
-  }
-
-  const [kpis, salesByDay, topProducts, statusCounts] = await Promise.all([
+  const [
+    kpis,
+    salesByDay,
+    topProducts,
+    statusCounts,
+  ] = await Promise.all([
     repository.dashboardKpis(),
     repository.salesByDay(from, to),
-    repository.topSellingProducts(from, to, 20),
+    repository.topSellingProducts(
+      from,
+      to,
+      20,
+    ),
     repository.orderStatusCounts(),
   ]);
 
   return {
-    range: { from, to },
+    range: {
+      from,
+      to,
+    },
     kpis,
-    salesByDay: salesByDay.map((item) => ({
-      date: item.date,
-      orders: Number(item.orders),
-      revenue: Number(item.revenue),
-    })),
-    topSellingProducts: topProducts.map((item) => ({
-      ...item,
-      quantitySold: Number(item.quantitySold),
-      revenue: Number(item.revenue),
-    })),
-    orderStatusCounts: statusCounts.map((item) => ({
-      status: item.status,
-      count: item._count._all,
-    })),
+    salesByDay: salesByDay.map(
+      (item) => ({
+        date: item.date,
+        orders: Number(item.orders),
+        revenue: item.revenue.toString(),
+      }),
+    ),
+    topSellingProducts: topProducts.map(
+      (item) => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantitySold: Number(item.quantitySold),
+        revenue: item.revenue.toString(),
+      }),
+    ),
+    orderStatusCounts: statusCounts.map(
+      (item) => ({
+        status: item.status,
+        count: item._count._all,
+      }),
+    ),
   };
 }
 
-
-export async function updateUser(id: string, input: import("./schema").UpdateUserInput, actor: { id: string; role: Role }) {
-  const existing = await repository.findUserById(id);
-  if (!existing) throw new NotFoundException("User not found");
-  if (actor.id === id && input.isActive === false) throw new BadRequestException("You cannot deactivate your own account");
-  if (actor.role === "ADMIN") {
-    if (existing.role !== "USER" || input.role === "ADMIN" || input.role === "SUPER_ADMIN") {
-      throw new BadRequestException("Admins can only manage customer accounts");
-    }
-  }
-  if (input.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN") {
-    throw new BadRequestException("Only a super administrator can grant super administrator access");
-  }
-  if (existing.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN") {
-    throw new BadRequestException("Only a super administrator can modify another super administrator");
-  }
-  return repository.updateUser(id, input);
-}
-
-export async function deleteUser(id: string, actor: { id: string; role: Role }) {
-  const existing = await repository.findUserById(id);
-  if (!existing) throw new NotFoundException("User not found");
-  if (actor.id === id) throw new BadRequestException("You cannot deactivate your own account");
-  if (actor.role === "ADMIN" && existing.role !== "USER") throw new BadRequestException("Admins can only deactivate customer accounts");
-  if (existing.role === "SUPER_ADMIN" && actor.role !== "SUPER_ADMIN") throw new BadRequestException("Only a super administrator can deactivate another super administrator");
-  return repository.deactivateUser(id);
-}
-
-export async function listReviews(query: import("./schema").ReviewListQuery) {
+export async function listReviews(
+  query: ReviewListQuery,
+) {
   return repository.findReviews(query);
 }
 
-export async function updateReviewStatus(id: string, input: import("./schema").UpdateReviewStatusInput) {
-  const review = await repository.findReviewById(id);
-  if (!review) throw new NotFoundException("Review not found");
-  const result = await repository.setReviewStatus(id, input.status);
+export async function updateReviewStatus(
+  id: string,
+  input: UpdateReviewStatusInput,
+) {
+  const review =
+    await repository.findReviewById(id);
+
+  if (!review) {
+    throw new NotFoundException(
+      "Review not found",
+    );
+  }
+
+  const result =
+    await repository.setReviewStatus(
+      id,
+      input.status,
+    );
+
   await Promise.all([
-    cache.remove(CacheKeys.productReviews(review.productId)),
-    cache.remove(CacheKeys.productRating(review.productId)),
+    cache.remove(
+      CacheKeys.productReviews(
+        review.productId,
+      ),
+    ),
+    cache.remove(
+      CacheKeys.productRating(
+        review.productId,
+      ),
+    ),
   ]);
+
   return result;
 }
 
 export async function deleteReview(id: string) {
-  const review = await repository.findReviewById(id);
-  if (!review) throw new NotFoundException("Review not found");
+  const review =
+    await repository.findReviewById(id);
+
+  if (!review) {
+    throw new NotFoundException(
+      "Review not found",
+    );
+  }
+
   await repository.deleteReview(id);
+
   await Promise.all([
-    cache.remove(CacheKeys.productReviews(review.productId)),
-    cache.remove(CacheKeys.productRating(review.productId)),
+    cache.remove(
+      CacheKeys.productReviews(
+        review.productId,
+      ),
+    ),
+    cache.remove(
+      CacheKeys.productRating(
+        review.productId,
+      ),
+    ),
   ]);
-  return { success: true };
+
+  return null;
 }
 
-export async function attachProductImage(productId: string, input: import("./schema").AttachProductImageInput) {
-  const product = await repository.findProductById(productId);
-  if (!product) throw new NotFoundException("Product not found");
-  if (product.images.some((image) => image.publicId === input.publicId)) {
-    throw new BadRequestException("This image is already attached to the product");
+export async function attachProductImage(
+  productId: string,
+  input: AttachProductImageInput,
+) {
+  const product =
+    await repository.findProductById(
+      productId,
+    );
+
+  if (!product) {
+    throw new NotFoundException(
+      "Product not found",
+    );
   }
-  const image = await repository.attachProductImage(productId, input);
-  await Promise.all([cache.remove(CacheKeys.product(productId)), cache.clearPattern("products:*")]);
+
+  if (
+    product.images.some(
+      (image) =>
+        image.publicId === input.publicId,
+    )
+  ) {
+    throw new BadRequestException(
+      "This image is already attached to the product",
+    );
+  }
+
+  const image =
+    await repository.attachProductImage(
+      productId,
+      input,
+    );
+
+  await cache.remove(
+    CacheKeys.product(productId),
+  );
+
   return image;
 }
 
-export async function setPrimaryProductImage(productId: string, imageId: string) {
-  const image = await repository.findProductImage(productId, imageId);
-  if (!image) throw new NotFoundException("Product image not found");
-  const result = await repository.setPrimaryProductImage(productId, imageId);
-  await Promise.all([cache.remove(CacheKeys.product(productId)), cache.clearPattern("products:*")]);
+export async function setPrimaryProductImage(
+  productId: string,
+  imageId: string,
+) {
+  const image =
+    await repository.findProductImage(
+      productId,
+      imageId,
+    );
+
+  if (!image) {
+    throw new NotFoundException(
+      "Product image not found",
+    );
+  }
+
+  const result =
+    await repository.setPrimaryProductImage(
+      productId,
+      imageId,
+    );
+
+  await cache.remove(
+    CacheKeys.product(productId),
+  );
+
   return result;
 }
 
-export async function deleteProductImage(productId: string, imageId: string) {
-  const image = await repository.findProductImage(productId, imageId);
-  if (!image) throw new NotFoundException("Product image not found");
-  const result = await repository.deleteProductImage(productId, imageId);
-  try {
-    await cloudinary.uploader.destroy(image.publicId);
-  } catch {
-    // Database state remains authoritative; orphaned Cloudinary media can be cleaned separately.
+export async function deleteProductImage(
+  productId: string,
+  imageId: string,
+) {
+  const image =
+    await repository.findProductImage(
+      productId,
+      imageId,
+    );
+
+  if (!image) {
+    throw new NotFoundException(
+      "Product image not found",
+    );
   }
-  await Promise.all([cache.remove(CacheKeys.product(productId)), cache.clearPattern("products:*")]);
-  return { success: true, image: result };
+
+  const result =
+    await repository.deleteProductImage(
+      productId,
+      imageId,
+    );
+
+  try {
+    await cloudinary.uploader.destroy(
+      image.publicId,
+    );
+  } catch {
+    // Database remains authoritative.
+  }
+
+  await cache.remove(
+    CacheKeys.product(productId),
+  );
+
+  return {
+    image: result,
+  };
 }
 
-export async function listPayments(query: import("./schema").PaymentListQuery) {
+export function listPayments(
+  query: PaymentListQuery,
+) {
   return repository.findPayments(query);
 }
 
-export async function refundPayment(id: string, input: { reason?: string }) {
-  const payment = await repository.findPaymentForRefund(id);
-  if (!payment) throw new NotFoundException("Payment not found");
-  if (payment.status === PaymentStatus.REFUNDED) return { success: true, alreadyRefunded: true, payment };
-  if (payment.status !== PaymentStatus.PAID) throw new BadRequestException("Only paid payments can be refunded");
-  if (!payment.providerPaymentId) throw new BadRequestException("Payment provider transaction ID is missing");
+export async function refundPayment(
+  id: string,
+  input: RefundPaymentInput,
+) {
+  const payment =
+    await repository.findPaymentForRefund(id);
 
-  const order = await repository.findOrderByPaymentId(payment.id);
-  if (order?.status === OrderStatus.DELIVERED) {
-    throw new BadRequestException("Delivered orders require a return workflow before refund");
-  }
-  if (order?.status === OrderStatus.CANCELLED && payment.status !== PaymentStatus.PAID) {
-    throw new BadRequestException("The order is already cancelled");
+  if (!payment) {
+    throw new NotFoundException(
+      "Payment not found",
+    );
   }
 
-  const gateway = payment.provider === PaymentProvider.RAZORPAY ? razorpayProvider : stripeProvider;
-  await gateway.refund(payment.providerPaymentId, Number(payment.amount));
+  if (payment.status === PaymentStatus.REFUNDED) {
+    return {
+      alreadyRefunded: true,
+      payment,
+    };
+  }
 
-  const result = await repository.markRefunded(payment.id, order?.id, Boolean(order && order.status !== OrderStatus.SHIPPED));
+  if (payment.status !== PaymentStatus.PAID) {
+    throw new BadRequestException(
+      "Only paid payments can be refunded",
+    );
+  }
+
+  if (!payment.providerPaymentId) {
+    throw new BadRequestException(
+      "Razorpay payment ID is missing",
+    );
+  }
+
+  if (!payment.order) {
+    throw new NotFoundException(
+      "Order associated with payment not found",
+    );
+  }
+
+  if (payment.order.status === OrderStatus.DELIVERED) {
+    throw new BadRequestException(
+      "Delivered orders require a return workflow before refund",
+    );
+  }
+
+  await razorpayProvider.refund(
+    payment.providerPaymentId,
+    Number(payment.amount),
+  );
+
+  const cancelOrder =
+    payment.order.status !== OrderStatus.SHIPPED;
+
+  const result =
+    await repository.markRefunded(
+      payment.id,
+      payment.order.id,
+      cancelOrder,
+    );
+
   return {
-    success: true,
     alreadyRefunded: false,
     reason: input.reason,
     ...result,

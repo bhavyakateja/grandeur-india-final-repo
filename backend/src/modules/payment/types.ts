@@ -1,4 +1,5 @@
 export interface CreateOrderRequest {
+  /** Razorpay accepts integer currency subunits (paise). */
   amount: number;
   currency: string;
 }
@@ -16,8 +17,20 @@ export interface VerifyPaymentRequest {
 }
 
 export interface PaymentGateway {
-  createOrder(data: CreateOrderRequest): Promise<CreateOrderResponse>;
-  verify(data: VerifyPaymentRequest): Promise<boolean>;
-  fetchPayment(paymentId: string): Promise<unknown>;
-  refund(paymentId: string, amount?: number): Promise<void>;
+  createOrder(
+    data: CreateOrderRequest,
+  ): Promise<CreateOrderResponse>;
+
+  verify(
+    data: VerifyPaymentRequest,
+  ): Promise<boolean>;
+
+  fetchPayment(
+    paymentId: string,
+  ): Promise<unknown>;
+
+  refund(
+    paymentId: string,
+    amount?: number,
+  ): Promise<void>;
 }

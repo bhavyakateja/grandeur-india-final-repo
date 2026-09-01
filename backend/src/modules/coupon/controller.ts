@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 
 import * as service from "./service";
-
 import {
   createCouponSchema,
   updateCouponSchema,
@@ -11,7 +10,7 @@ import {
 
 import { authMiddleware } from "../../middleware/authMiddleware";
 import { roleMiddleware } from "../../middleware/roleMiddleware";
-import { Role } from "../../generated/prisma/client";
+import * as checkoutService from "../checkout/service";
 
 export const couponController = new Hono();
 
@@ -26,15 +25,18 @@ couponController.post(
   async (c) => {
     const user = c.get("user");
 
-    const body = c.req.valid("json");
+    const input = c.req.valid("json");
+    const subtotal = await checkoutService.getCartSubtotal(user.id);
+    const result = await service.applyCoupon(user.id, {
+      code: input.code,
+      subtotal,
+    });
 
-    const result = await service.applyCoupon(
-      user.id,
-      body
-    );
-
-    return c.json(result);
-  }
+    return c.json({
+      success: true,
+      data: result,
+    });
+  },
 );
 
 /**
@@ -42,61 +44,81 @@ couponController.post(
  */
 couponController.post(
   "/",
-  roleMiddleware(Role.ADMIN, Role.SUPER_ADMIN),
+  roleMiddleware("ADMIN"),
   zValidator("json", createCouponSchema),
   async (c) => {
-    const body = c.req.valid("json");
+    const coupon = await service.create(
+      c.req.valid("json"),
+    );
 
-    const coupon = await service.create(body);
-
-    return c.json(coupon, 201);
-  }
+    return c.json(
+      {
+        success: true,
+        data: coupon,
+      },
+      201,
+    );
+  },
 );
 
 couponController.get(
   "/",
-  roleMiddleware(Role.ADMIN, Role.SUPER_ADMIN),
+  roleMiddleware("ADMIN"),
   async (c) => {
     const coupons = await service.findAll();
 
-    return c.json(coupons);
-  }
+    return c.json({
+      success: true,
+      data: coupons,
+    });
+  },
 );
 
 couponController.get(
   "/:id",
-  roleMiddleware(Role.ADMIN, Role.SUPER_ADMIN),
+  roleMiddleware("ADMIN"),
   async (c) => {
     const coupon = await service.findById(
-      c.req.param("id")
+      c.req.param("id"),
     );
 
-    return c.json(coupon);
-  }
+    return c.json({
+      success: true,
+      data: coupon,
+    });
+  },
 );
 
 couponController.patch(
   "/:id",
-  roleMiddleware(Role.ADMIN, Role.SUPER_ADMIN),
+  roleMiddleware("ADMIN"),
   zValidator("json", updateCouponSchema),
   async (c) => {
     const coupon = await service.update(
       c.req.param("id"),
-      c.req.valid("json")
+      c.req.valid("json"),
     );
 
-    return c.json(coupon);
-  }
+    return c.json({
+      success: true,
+      data: coupon,
+    });
+  },
 );
 
 couponController.delete(
   "/:id",
-  roleMiddleware(Role.ADMIN, Role.SUPER_ADMIN),
+  roleMiddleware("ADMIN"),
   async (c) => {
-    await service.remove(c.req.param("id"));
+    await service.remove(
+      c.req.param("id"),
+    );
 
     return c.json({
       success: true,
+      message: "Coupon deactivated successfully",
     });
-  }
+  },
 );
+
+export { couponRouter } from "./routes";

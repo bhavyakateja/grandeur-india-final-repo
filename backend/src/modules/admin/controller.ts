@@ -1,94 +1,271 @@
 import type { Context } from "hono";
-import { z } from "zod";
+
 import * as service from "./service";
-import { AppError } from "../../exceptions/AppError";
+
 import {
+  analyticsQuerySchema,
   attachProductImageSchema,
-  userListQuerySchema,
   orderListQuerySchema,
-  updateOrderStatusSchema,
-  updateUserSchema,
-  reviewListQuerySchema,
-  updateReviewStatusSchema,
   paymentListQuerySchema,
   refundPaymentSchema,
+  reviewListQuerySchema,
+  updateOrderStatusSchema,
+  updateReviewStatusSchema,
+  updateUserSchema,
+  userListQuerySchema,
 } from "./schema";
 
-export const listUsers = async (c: Context) => c.json(await service.listUsers(userListQuerySchema.parse(c.req.query())));
+import { AppError } from "../../exceptions/AppError";
+import { successResponse } from "../../shared/response";
+
+function requiredParam(
+  c: Context,
+  name: string,
+): string {
+  const value = c.req.param(name);
+
+  if (!value) {
+    throw new AppError(
+      `${name} is required`,
+      400,
+    );
+  }
+
+  return value;
+}
+
+export const listUsers = async (c: Context) => {
+  const query =
+    userListQuerySchema.parse(
+      c.req.query(),
+    );
+
+  return successResponse(
+    c,
+    await service.listUsers(query),
+  );
+};
 
 export const getUser = async (c: Context) => {
-  const id = c.req.param("id");
-  if (!id) throw new AppError("User ID is required", 400);
-  return c.json(await service.getUser(id));
+  return successResponse(
+    c,
+    await service.getUser(
+      requiredParam(c, "id"),
+    ),
+  );
 };
 
-export const updateUser = async (c: Context) => {
-  const id = c.req.param("id");
-  if (!id) throw new AppError("User ID is required", 400);
-  return c.json(await service.updateUser(id, updateUserSchema.parse(await c.req.json()), c.get("user")));
+export const updateUser = async (
+  c: Context,
+) => {
+  const input =
+    updateUserSchema.parse(
+      await c.req.json(),
+    );
+
+  return successResponse(
+    c,
+    await service.updateUser(
+      requiredParam(c, "id"),
+      input,
+      c.get("user"),
+    ),
+    "User updated successfully",
+  );
 };
 
-export const deleteUser = async (c: Context) => {
-  const id = c.req.param("id");
-  if (!id) throw new AppError("User ID is required", 400);
-  return c.json(await service.deleteUser(id, c.get("user")));
+export const deleteUser = async (
+  c: Context,
+) => {
+  return successResponse(
+    c,
+    await service.deleteUser(
+      requiredParam(c, "id"),
+      c.get("user"),
+    ),
+    "User deactivated successfully",
+  );
 };
 
-export const listOrders = async (c: Context) => c.json(await service.listOrders(orderListQuerySchema.parse(c.req.query())));
-
-export const getOrder = async (c: Context) => {
-  const id = c.req.param("id");
-  if (!id) throw new AppError("Order ID is required", 400);
-  return c.json(await service.getOrder(id));
+export const listOrders = async (
+  c: Context,
+) => {
+  return successResponse(
+    c,
+    await service.listOrders(
+      orderListQuerySchema.parse(
+        c.req.query(),
+      ),
+    ),
+  );
 };
 
-export const updateOrderStatus = async (c: Context) => {
-  const id = c.req.param("id");
-  if (!id) throw new AppError("Order ID is required", 400);
-  return c.json(await service.changeOrderStatus(id, updateOrderStatusSchema.parse(await c.req.json())));
+export const getOrder = async (
+  c: Context,
+) => {
+  return successResponse(
+    c,
+    await service.getOrder(
+      requiredParam(c, "id"),
+    ),
+  );
 };
 
-export const listReviews = async (c: Context) => c.json(await service.listReviews(reviewListQuerySchema.parse(c.req.query())));
+export const updateOrderStatus = async (
+  c: Context,
+) => {
+  const input =
+    updateOrderStatusSchema.parse(
+      await c.req.json(),
+    );
 
-export const updateReviewStatus = async (c: Context) => {
-  const id = c.req.param("id");
-  if (!id) throw new AppError("Review ID is required", 400);
-  return c.json(await service.updateReviewStatus(id, updateReviewStatusSchema.parse(await c.req.json())));
+  return successResponse(
+    c,
+    await service.changeOrderStatus(
+      requiredParam(c, "id"),
+      input,
+    ),
+    "Order status updated successfully",
+  );
 };
 
-export const deleteReview = async (c: Context) => {
-  const id = c.req.param("id");
-  if (!id) throw new AppError("Review ID is required", 400);
-  return c.json(await service.deleteReview(id));
+export const listReviews = async (
+  c: Context,
+) => {
+  return successResponse(
+    c,
+    await service.listReviews(
+      reviewListQuerySchema.parse(
+        c.req.query(),
+      ),
+    ),
+  );
 };
 
-export const attachProductImage = async (c: Context) => {
-  const productId = c.req.param("productId");
-  if (!productId) throw new AppError("Product ID is required", 400);
-  return c.json(await service.attachProductImage(productId, attachProductImageSchema.parse(await c.req.json())), 201);
+export const updateReviewStatus = async (
+  c: Context,
+) => {
+  const input =
+    updateReviewStatusSchema.parse(
+      await c.req.json(),
+    );
+
+  return successResponse(
+    c,
+    await service.updateReviewStatus(
+      requiredParam(c, "id"),
+      input,
+    ),
+    "Review status updated successfully",
+  );
 };
 
-export const setPrimaryProductImage = async (c: Context) => {
-  const productId = c.req.param("productId");
-  const imageId = c.req.param("imageId");
-  if (!productId || !imageId) throw new AppError("Product and image IDs are required", 400);
-  return c.json(await service.setPrimaryProductImage(productId, imageId));
+export const deleteReview = async (
+  c: Context,
+) => {
+  return successResponse(
+    c,
+    await service.deleteReview(
+      requiredParam(c, "id"),
+    ),
+    "Review deleted successfully",
+  );
 };
 
-export const deleteProductImage = async (c: Context) => {
-  const productId = c.req.param("productId");
-  const imageId = c.req.param("imageId");
-  if (!productId || !imageId) throw new AppError("Product and image IDs are required", 400);
-  return c.json(await service.deleteProductImage(productId, imageId));
+export const attachProductImage = async (
+  c: Context,
+) => {
+  const input =
+    attachProductImageSchema.parse(
+      await c.req.json(),
+    );
+
+  return successResponse(
+    c,
+    await service.attachProductImage(
+      requiredParam(c, "productId"),
+      input,
+    ),
+    "Product image attached successfully",
+    201,
+  );
 };
 
-export const listPayments = async (c: Context) => c.json(await service.listPayments(paymentListQuerySchema.parse(c.req.query())));
-
-export const refundPayment = async (c: Context) => {
-  const id = c.req.param("id");
-  if (!id) throw new AppError("Payment ID is required", 400);
-  return c.json(await service.refundPayment(id, refundPaymentSchema.parse(await c.req.json())));
+export const setPrimaryProductImage = async (
+  c: Context,
+) => {
+  return successResponse(
+    c,
+    await service.setPrimaryProductImage(
+      requiredParam(c, "productId"),
+      requiredParam(c, "imageId"),
+    ),
+    "Primary image updated successfully",
+  );
 };
 
-export const dashboard = async (c: Context) => c.json(await service.getDashboard());
-export const analytics = async (c: Context) => c.json(await service.getAnalytics(c.req.query()));
+export const deleteProductImage = async (
+  c: Context,
+) => {
+  return successResponse(
+    c,
+    await service.deleteProductImage(
+      requiredParam(c, "productId"),
+      requiredParam(c, "imageId"),
+    ),
+    "Product image deleted successfully",
+  );
+};
+
+export const listPayments = async (
+  c: Context,
+) => {
+  return successResponse(
+    c,
+    await service.listPayments(
+      paymentListQuerySchema.parse(
+        c.req.query(),
+      ),
+    ),
+  );
+};
+
+export const refundPayment = async (
+  c: Context,
+) => {
+  const input =
+    refundPaymentSchema.parse(
+      await c.req.json(),
+    );
+
+  return successResponse(
+    c,
+    await service.refundPayment(
+      requiredParam(c, "id"),
+      input,
+    ),
+    "Payment refunded successfully",
+  );
+};
+
+export const dashboard = async (
+  c: Context,
+) => {
+  return successResponse(
+    c,
+    await service.getDashboard(),
+  );
+};
+
+export const analytics = async (
+  c: Context,
+) => {
+  return successResponse(
+    c,
+    await service.getAnalytics(
+      analyticsQuerySchema.parse(
+        c.req.query(),
+      ),
+    ),
+  );
+};

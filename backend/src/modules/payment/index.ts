@@ -1,1 +1,1 @@
-export * from "./routes";
+export { paymentRouter } from "./routes";

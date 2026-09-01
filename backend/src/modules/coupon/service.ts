@@ -1,4 +1,7 @@
-import { Prisma, CouponType } from "../../generated/prisma/client";
+import {
+  CouponType,
+  Prisma,
+} from "../../generated/prisma/client";
 
 import * as repository from "./repository";
 
@@ -10,30 +13,23 @@ import {
   NotFoundException,
 } from "../../exceptions/NotFoundException";
 
-import type {
-  CreateCouponInput,
-  UpdateCouponInput,
-  ApplyCouponInput,
-} from "./schema";
+import type { CreateCouponInput, UpdateCouponInput } from "./schema";
 
 import type {
   ApplyCouponResult,
 } from "./types";
-import { couponApplicationsTotal, couponRedemptionsTotal } from "../metrics";
-
-const rejectCoupon = (message: string): never => {
-  couponApplicationsTotal.inc({ result: "rejected" });
-  throw new BadRequestException(message);
-};
 
 export async function create(
-  data: CreateCouponInput
+  data: CreateCouponInput,
 ) {
-  const existing = await repository.findByCode(data.code);
+  const existing =
+    await repository.findByCode(
+      data.code,
+    );
 
   if (existing) {
     throw new BadRequestException(
-      "Coupon already exists"
+      "Coupon already exists",
     );
   }
 
@@ -44,11 +40,16 @@ export function findAll() {
   return repository.findAll();
 }
 
-export async function findById(id: string) {
-  const coupon = await repository.findById(id);
+export async function findById(
+  id: string,
+) {
+  const coupon =
+    await repository.findById(id);
 
   if (!coupon) {
-    throw new NotFoundException("Coupon not found");
+    throw new NotFoundException(
+      "Coupon not found",
+    );
   }
 
   return coupon;
@@ -56,117 +57,170 @@ export async function findById(id: string) {
 
 export async function update(
   id: string,
-  data: UpdateCouponInput
+  data: UpdateCouponInput,
 ) {
   await findById(id);
 
-  return repository.update(id, data);
+  if (data.code) {
+    const existing =
+      await repository.findByCode(
+        data.code,
+      );
+
+    if (
+      existing &&
+      existing.id !== id
+    ) {
+      throw new BadRequestException(
+        "Coupon code already exists",
+      );
+    }
+  }
+
+  return repository.update(
+    id,
+    data,
+  );
 }
 
-export async function remove(id: string) {
+export async function remove(
+  id: string,
+) {
   await findById(id);
 
-  return repository.remove(id);
+  return repository.deactivate(id);
 }
 
 export async function applyCoupon(
   userId: string,
-  data: ApplyCouponInput
+  data: { code: string; subtotal: Prisma.Decimal },
 ): Promise<ApplyCouponResult> {
-  couponApplicationsTotal.inc({ result: "attempted" });
-  const coupon = await repository.findByCode(data.code);
+  const coupon =
+    await repository.findByCode(
+      data.code,
+    );
 
   if (!coupon) {
-    couponApplicationsTotal.inc({ result: "not_found" });
-    throw new NotFoundException("Coupon not found");
+    throw new NotFoundException(
+      "Coupon not found",
+    );
   }
 
   if (!coupon.isActive) {
-    rejectCoupon("Coupon is inactive");
+    throw new BadRequestException(
+      "Coupon is inactive",
+    );
   }
 
   const now = new Date();
 
-  if (coupon.startsAt && now < coupon.startsAt) {
-    rejectCoupon("Coupon is not active yet");
+  if (
+    coupon.startsAt &&
+    now < coupon.startsAt
+  ) {
+    throw new BadRequestException(
+      "Coupon is not active yet",
+    );
   }
 
-  if (coupon.expiresAt && now > coupon.expiresAt) {
-    rejectCoupon("Coupon has expired");
+  if (
+    coupon.expiresAt &&
+    now > coupon.expiresAt
+  ) {
+    throw new BadRequestException(
+      "Coupon has expired",
+    );
   }
 
   if (
     coupon.usageLimit !== null &&
-    coupon.usedCount >= coupon.usageLimit
+    coupon.usedCount >=
+      coupon.usageLimit
   ) {
-    rejectCoupon("Coupon usage limit reached");
+    throw new BadRequestException(
+      "Coupon usage limit reached",
+    );
   }
 
   if (
-    coupon.minimumOrderAmount &&
-    data.subtotal <
-      Number(coupon.minimumOrderAmount)
+    coupon.minimumOrderAmount !==
+      null &&
+    coupon.minimumOrderAmount !==
+      undefined &&
+    data.subtotal.lt(coupon.minimumOrderAmount)
   ) {
-    rejectCoupon(`Minimum order amount is ₹${coupon.minimumOrderAmount}`);
+    throw new BadRequestException(
+      "Minimum order amount requirement not met",
+    );
   }
 
   const alreadyUsed =
     await repository.hasUserUsedCoupon(
       coupon.id,
-      userId
+      userId,
     );
 
   if (alreadyUsed) {
-    rejectCoupon("Coupon already used");
+    throw new BadRequestException(
+      "Coupon already used",
+    );
   }
 
-  let discount = 0;
+  let discount = new Prisma.Decimal(0);
 
   if (
-    coupon.type === CouponType.PERCENTAGE
+    coupon.type ===
+    CouponType.PERCENTAGE
   ) {
-    discount =
-      (data.subtotal *
-        Number(coupon.value)) /
-      100;
+    discount = data.subtotal.mul(coupon.value).div(100);
 
     if (
-      coupon.maximumDiscount &&
-      discount >
-        Number(coupon.maximumDiscount)
+      coupon.maximumDiscount !==
+        null &&
+      coupon.maximumDiscount !==
+        undefined &&
+      discount.gt(coupon.maximumDiscount)
     ) {
-      discount = Number(
-        coupon.maximumDiscount
-      );
+      discount = new Prisma.Decimal(coupon.maximumDiscount);
     }
   } else {
-    discount = Number(coupon.value);
+    discount = new Prisma.Decimal(coupon.value);
   }
 
-  if (discount > data.subtotal) {
-    discount = data.subtotal;
+  if (discount.gt(data.subtotal)) {
+    discount = new Prisma.Decimal(data.subtotal);
   }
 
-  couponApplicationsTotal.inc({ result: "applied" });
   return {
     coupon,
     discount,
     finalAmount:
-      data.subtotal - discount,
+      data.subtotal.minus(discount),
   };
 }
 
+/**
+ * Call this only after the order/payment
+ * has successfully completed.
+ */
 export async function consumeCoupon(
   couponId: string,
-  userId: string
+  userId: string,
 ) {
-  await repository.createUsage(
-    couponId,
-    userId
-  );
+  try {
+    return await repository.consumeCoupon(
+      couponId,
+      userId,
+    );
+  } catch (error) {
+    if (
+      error instanceof Error
+    ) {
+      throw new BadRequestException(
+        error.message,
+      );
+    }
 
-  await repository.incrementUsage(
-    couponId
-  );
-  couponRedemptionsTotal.inc();
+    throw error;
+  }
 }

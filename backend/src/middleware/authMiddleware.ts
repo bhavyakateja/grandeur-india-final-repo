@@ -1,8 +1,6 @@
 import { createMiddleware } from "hono/factory";
-
 import { verifyAccessToken } from "../shared/jwt";
 import { UnauthorizedException } from "../exceptions/UnauthorizedException";
-
 import type { AppVariables } from "../types/hono";
 
 export const authMiddleware = createMiddleware<{
@@ -14,11 +12,11 @@ export const authMiddleware = createMiddleware<{
     throw new UnauthorizedException("Authorization header is missing");
   }
 
-  if (!authHeader.startsWith("Bearer ")) {
+  const [scheme, token] = authHeader.trim().split(/\s+/);
+
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
     throw new UnauthorizedException("Invalid authorization header");
   }
-
-  const token = authHeader.substring(7);
 
   try {
     const payload = await verifyAccessToken(token);
@@ -30,7 +28,11 @@ export const authMiddleware = createMiddleware<{
     });
 
     await next();
-  } catch {
+  } catch (error) {
+    if (error instanceof UnauthorizedException) {
+      throw error;
+    }
+
     throw new UnauthorizedException("Invalid or expired token");
   }
 });

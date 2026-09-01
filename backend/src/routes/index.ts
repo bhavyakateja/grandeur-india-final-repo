@@ -16,6 +16,7 @@ import { notificationRouter } from "../modules/notification";
 import { invoiceRouter } from "../modules/invoice";
 import { inventoryRouter } from "../modules/inventory";
 import { adminRouter } from "../modules/admin";
+import { settingsRouter } from "../modules/settings";
 
 const router = new Hono();
 
@@ -41,5 +42,9 @@ router.route("/notifications",notificationRouter);
 router.route("/invoice", invoiceRouter);
 router.route("/inventory",inventoryRouter);
 router.route("/admin", adminRouter);
+router.route(
+  "/settings",
+  settingsRouter,
+);
 
 export default router;

@@ -1,28 +1,72 @@
+import type { User } from "../../generated/prisma/client";
+
 import * as authRepository from "./repository";
+
 import { ConflictException } from "../../exceptions/ConflictException";
 import { UnauthorizedException } from "../../exceptions/UnauthorizedException";
 import { NotFoundException } from "../../exceptions/NotFoundException";
+
 import { hashPassword, verifyPassword } from "../../shared/password";
 import { sha256 } from "../../shared/hash";
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../../shared/jwt";
-import { buildJwtPayload } from "./utils";
-import { logger } from "../logger";
-import { usersRegistered } from "../metrics";
 
-import type { LoginInput, SignupInput } from "./schema";
-import type { AuthResponse, AuthUser, TokenPair } from "./types";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+} from "../../shared/jwt";
 
-const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+import { logger } from "../../config/logger";
 
-function toAuthUser(user: any): AuthUser {
-  const { password: _password, ...safeUser } = user;
-  return safeUser as AuthUser;
+import type {
+  AuthResponse,
+  AuthUser,
+  JwtPayload,
+  TokenPair,
+} from "./types";
+
+import type {
+  LoginInput,
+  SignupInput,
+} from "./schema";
+
+type RequestMeta = {
+  userAgent?: string;
+  ipAddress?: string;
+};
+
+function toAuthUser(user: User): AuthUser {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    avatar: user.avatar,
+    isVerified: user.isVerified,
+    isActive: user.isActive,
+  };
 }
 
-async function issueTokenPair(user: any, meta?: { userAgent?: string; ipAddress?: string }): Promise<TokenPair> {
+function buildJwtPayload(
+  user: User,
+): JwtPayload {
+  return {
+    userId: user.id,
+    email: user.email,
+    role: user.role,
+  };
+}
+
+async function issueTokenPair(
+  user: User,
+  meta?: RequestMeta,
+): Promise<TokenPair> {
   const payload = buildJwtPayload(user);
-  const accessToken = await generateAccessToken(payload);
-  const refreshToken = await generateRefreshToken(payload);
+
+  const [accessToken, refreshToken] =
+    await Promise.all([
+      generateAccessToken(payload),
+      generateRefreshToken(payload),
+    ]);
 
   await authRepository.saveRefreshToken(
     user.id,
@@ -31,101 +75,194 @@ async function issueTokenPair(user: any, meta?: { userAgent?: string; ipAddress?
     meta?.ipAddress,
   );
 
-  return { accessToken, refreshToken };
+  return {
+    accessToken,
+    refreshToken,
+  };
 }
 
-async function authenticate(data: LoginInput, meta?: { userAgent?: string; ipAddress?: string }) {
-  const user = await authRepository.findByEmail(data.email);
+async function authenticate(
+  data: LoginInput,
+  meta?: RequestMeta,
+): Promise<AuthResponse> {
+  const user =
+    await authRepository.findByEmail(data.email);
 
   if (!user) {
-    throw new UnauthorizedException("Invalid email or password");
+    throw new UnauthorizedException(
+      "Invalid email or password",
+    );
   }
 
-  const isPasswordValid = await verifyPassword(user.password, data.password);
+  const valid = await verifyPassword(
+    user.password,
+    data.password,
+  );
 
-  if (!isPasswordValid) {
-    throw new UnauthorizedException("Invalid email or password");
+  if (!valid) {
+    throw new UnauthorizedException(
+      "Invalid email or password",
+    );
   }
 
   if (!user.isActive) {
-    throw new UnauthorizedException("Account has been deactivated");
+    throw new UnauthorizedException(
+      "Account has been deactivated",
+    );
   }
 
   await authRepository.updateLastLogin(user.id);
-  const tokens = await issueTokenPair(user, meta);
-  logger.info({ email: user.email, role: user.role }, "User Login");
 
-  return { user: toAuthUser(user), tokens };
+  const tokens = await issueTokenPair(
+    user,
+    meta,
+  );
+
+  logger.info(
+    {
+      userId: user.id,
+      role: user.role,
+    },
+    "User logged in",
+  );
+
+  return {
+    user: toAuthUser(user),
+    tokens,
+  };
 }
 
-export async function signup(data: SignupInput, meta?: { userAgent?: string; ipAddress?: string }): Promise<AuthResponse> {
-  const existingUser = await authRepository.findByEmail(data.email);
+export async function signup(
+  data: SignupInput,
+  meta?: RequestMeta,
+): Promise<AuthResponse> {
+  const existingUser =
+    await authRepository.findByEmail(data.email);
 
   if (existingUser) {
-    throw new ConflictException("Email already exists");
+    throw new ConflictException(
+      "Email already exists",
+    );
   }
 
-  const hashedPassword = await hashPassword(data.password);
+  const hashedPassword =
+    await hashPassword(data.password);
 
-  const user = await authRepository.createUser({
-    name: data.name,
-    email: data.email,
-    password: hashedPassword,
-  });
+  const user =
+    await authRepository.createUser({
+      name: data.name,
+      email: data.email,
+      password: hashedPassword,
+      role: "USER",
+    });
 
-  const tokens = await issueTokenPair(user, meta);
-  logger.info({ email: user.email }, "User Registered");
-  usersRegistered.inc();
+  const tokens = await issueTokenPair(
+    user,
+    meta,
+  );
 
-  return { user: toAuthUser(user), tokens };
+  logger.info(
+    {
+      userId: user.id,
+    },
+    "User registered",
+  );
+
+  return {
+    user: toAuthUser(user),
+    tokens,
+  };
 }
 
-export async function login(data: LoginInput, meta?: { userAgent?: string; ipAddress?: string }): Promise<AuthResponse> {
+export function login(
+  data: LoginInput,
+  meta?: RequestMeta,
+) {
   return authenticate(data, meta);
 }
 
-export async function refresh(refreshToken: string, meta?: { userAgent?: string; ipAddress?: string }) {
-  let payload;
+export async function refresh(
+  refreshToken: string,
+  meta?: RequestMeta,
+) {
+  let payload: JwtPayload;
 
   try {
-    payload = await verifyRefreshToken(refreshToken);
+    payload =
+      await verifyRefreshToken(refreshToken);
   } catch {
-    throw new UnauthorizedException("Invalid or expired refresh token");
+    throw new UnauthorizedException(
+      "Invalid or expired refresh token",
+    );
   }
 
-  const storedToken = await authRepository.findRefreshToken(sha256(refreshToken));
+  const tokenHash = sha256(refreshToken);
 
-  if (!storedToken || storedToken.revokedAt || storedToken.expiresAt <= new Date()) {
-    throw new UnauthorizedException("Refresh token is invalid or expired");
+  const storedToken =
+    await authRepository.findRefreshToken(
+      tokenHash,
+    );
+
+  if (
+    !storedToken ||
+    storedToken.revokedAt ||
+    storedToken.expiresAt <= new Date()
+  ) {
+    throw new UnauthorizedException(
+      "Refresh token is invalid or expired",
+    );
   }
 
-  const user = await authRepository.findById(payload.userId);
+  const user =
+    await authRepository.findById(
+      payload.userId,
+    );
 
   if (!user || !user.isActive) {
-    throw new UnauthorizedException("User account is unavailable");
+    throw new UnauthorizedException(
+      "User account is unavailable",
+    );
   }
 
-  await authRepository.revokeRefreshToken(storedToken.tokenHash);
-  const tokens = await issueTokenPair(user, meta);
+  await authRepository.revokeRefreshToken(
+    tokenHash,
+  );
 
-  return { user: toAuthUser(user), tokens };
+  const tokens = await issueTokenPair(
+    user,
+    meta,
+  );
+
+  return {
+    user: toAuthUser(user),
+    tokens,
+  };
 }
 
-export async function logout(refreshToken?: string) {
-  if (!refreshToken) return;
+export async function logout(
+  refreshToken?: string,
+) {
+  if (!refreshToken) {
+    return;
+  }
 
   try {
-    await authRepository.revokeRefreshToken(sha256(refreshToken));
+    await authRepository.revokeRefreshToken(
+      sha256(refreshToken),
+    );
   } catch {
-    // Logout remains idempotent even when the token is already revoked/expired.
+    // Logout is intentionally idempotent.
   }
 }
 
 export async function me(userId: string) {
-  const user = await authRepository.getProfile(userId);
+  const user =
+    await authRepository.getProfile(userId);
 
   if (!user) {
-    throw new NotFoundException("User not found");
+    throw new NotFoundException(
+      "User not found",
+    );
   }
 
   return user;

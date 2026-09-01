@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 
 import * as service from "./service";
-
 import {
   createCategorySchema,
   updateCategorySchema,
@@ -15,78 +14,122 @@ import { cache, CacheKeys } from "../redis";
 
 export const categoryController = new Hono();
 
-// Create Category (Admin)
+/**
+ * Admin routes
+ */
 categoryController.post(
   "/",
   authMiddleware,
-  roleMiddleware("ADMIN", "SUPER_ADMIN"),
+  roleMiddleware("ADMIN"),
   zValidator("json", createCategorySchema),
   async (c) => {
     const body = c.req.valid("json");
 
     const category = await service.create(body);
 
-    return c.json(category, 201);
-  }
+    return c.json(
+      {
+        success: true,
+        data: category,
+      },
+      201,
+    );
+  },
 );
 
-// Get All Categories
+/**
+ * Public: list categories
+ */
 categoryController.get(
   "/",
   zValidator("query", categoryQuerySchema),
   cache((c) => {
-    const query = new URL(c.req.url).searchParams;
-    const suffix = [...query.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join("&");
-    return suffix ? `${CacheKeys.categories()}:${suffix}` : CacheKeys.categories();
+    const search = c.req.query("search");
+
+    return search
+      ? `${CacheKeys.categories()}:search=${encodeURIComponent(search)}`
+      : CacheKeys.categories();
   }),
   async (c) => {
-    const query = c.req.valid("query");
+    const query = categoryQuerySchema.parse(
+      c.req.query(),
+    );
 
     const categories = await service.getAll(query);
 
-    return c.json(categories);
-  }
+    return c.json({
+      success: true,
+      data: categories,
+    });
+  },
 );
 
-// Get Category By ID
-categoryController.get("/:id", cache((c) => CacheKeys.category(c.req.param("id") ?? "")), async (c) => {
-  const id = c.req.param("id")!;
+/**
+ * Public: get category
+ */
+categoryController.get(
+  "/:id",
+  async (c, next) => {
+    const id = c.req.param("id");
 
-  const category = await service.getById(id);
+    return cache(() => CacheKeys.category(id))(
+      c,
+      next,
+    );
+  },
+  async (c) => {
+    const id = c.req.param("id");
 
-  return c.json(category);
-});
+    const category = await service.getById(id);
 
-// Update Category (Admin)
+    return c.json({
+      success: true,
+      data: category,
+    });
+  },
+);
+
+/**
+ * Admin: update category
+ */
 categoryController.put(
   "/:id",
   authMiddleware,
-  roleMiddleware("ADMIN", "SUPER_ADMIN"),
+  roleMiddleware("ADMIN"),
   zValidator("json", updateCategorySchema),
   async (c) => {
-    const id = c.req.param("id")!;
-
+    const id = c.req.param("id");
     const body = c.req.valid("json");
 
-    const category = await service.update(id, body);
+    const category = await service.update(
+      id,
+      body,
+    );
 
-    return c.json(category);
-  }
+    return c.json({
+      success: true,
+      data: category,
+    });
+  },
 );
 
-// Delete Category (Admin)
+/**
+ * Admin: deactivate category
+ */
 categoryController.delete(
   "/:id",
   authMiddleware,
-  roleMiddleware("ADMIN", "SUPER_ADMIN"),
+  roleMiddleware("ADMIN"),
   async (c) => {
-    const id = c.req.param("id")!;
+    const id = c.req.param("id");
 
     await service.remove(id);
 
     return c.json({
       success: true,
-      message: "Category deleted successfully",
+      message: "Category deactivated successfully",
     });
-  }
+  },
 );
+
+export { categoryRouter } from "./routes";
