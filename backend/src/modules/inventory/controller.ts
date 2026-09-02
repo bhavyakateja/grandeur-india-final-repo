@@ -14,7 +14,7 @@ import { Role } from "../../generated/prisma/client";
 export const inventoryController = new Hono();
 
 inventoryController.use("*", authMiddleware);
-inventoryController.use("*", roleMiddleware(Role.ADMIN, Role.SUPER_ADMIN));
+inventoryController.use("*", roleMiddleware(Role.ADMIN));
 
 /**
  * Update product stock.

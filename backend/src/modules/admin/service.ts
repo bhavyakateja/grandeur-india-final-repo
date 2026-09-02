@@ -8,9 +8,14 @@ import {
 import cloudinary from "../../config/cloudinary";
 import { cache, CacheKeys } from "../redis";
 import { razorpayProvider } from "../payment/providers/razorpay";
+import { env } from "../../config/env";
+import type {
+  AttachProductImagesInput,
+} from "./schema";
 
 import { BadRequestException } from "../../exceptions/BadRequestException";
 import { NotFoundException } from "../../exceptions/NotFoundException";
+import { randomUUID } from "node:crypto";
 
 import * as repository from "./repository";
 
@@ -530,4 +535,212 @@ export async function refundPayment(
     reason: input.reason,
     ...result,
   };
+}
+
+export async function uploadProductImage(
+  productId: string,
+  file: File,
+) {
+  const product =
+    await repository.findProductById(
+      productId,
+    );
+
+  if (!product) {
+    throw new NotFoundException(
+      "Product not found",
+    );
+  }
+
+  if (!file.type.startsWith("image/")) {
+    throw new BadRequestException(
+      "Only image files are allowed",
+    );
+  }
+
+  const MAX_SIZE = 10 * 1024 * 1024;
+
+  if (file.size > MAX_SIZE) {
+    throw new BadRequestException(
+      "Image must be smaller than 10MB",
+    );
+  }
+
+  const allowedTypes = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/avif",
+  ]);
+
+  if (!allowedTypes.has(file.type)) {
+    throw new BadRequestException(
+      "Supported image formats are JPEG, PNG, WebP and AVIF",
+    );
+  }
+
+  const buffer = Buffer.from(
+    await file.arrayBuffer(),
+  );
+
+  const upload = await new Promise<{
+    secure_url: string;
+    public_id: string;
+  }>((resolve, reject) => {
+    const stream =
+      cloudinary.uploader.upload_stream(
+        {
+          folder: "ecommerce/products",
+          resource_type: "image",
+          public_id: `${productId}-${randomUUID()}`,
+          overwrite: false,
+        },
+        (error, result) => {
+          if (error || !result) {
+            reject(
+              error ??
+                new Error(
+                  "Cloudinary upload failed",
+                ),
+            );
+            return;
+          }
+
+          resolve({
+            secure_url: result.secure_url,
+            public_id: result.public_id,
+          });
+        },
+      );
+
+    stream.end(buffer);
+  });
+
+  const isPrimary =
+    product.images.length === 0;
+
+  try {
+    const image =
+      await repository.attachProductImage(
+        productId,
+        {
+          url: upload.secure_url,
+          publicId: upload.public_id,
+          isPrimary,
+        },
+      );
+
+    await cache.remove(
+      CacheKeys.product(productId),
+    );
+
+    return image;
+  } catch (error) {
+    // Prevent orphaned Cloudinary assets if
+    // the database operation fails.
+    try {
+      await cloudinary.uploader.destroy(
+        upload.public_id,
+      );
+    } catch {
+      // Do not hide the original database error.
+    }
+
+    throw error;
+  }
+}
+
+export async function getProductImageUploadSignature(
+  productId: string,
+) {
+  const product =
+    await repository.findProductById(
+      productId,
+    );
+
+  if (!product) {
+    throw new NotFoundException(
+      "Product not found",
+    );
+  }
+
+  const timestamp =
+    Math.floor(Date.now() / 1000);
+
+  const folder =
+    `ecommerce/products/${productId}`;
+
+  const paramsToSign = {
+    timestamp,
+    folder,
+  };
+
+  const signature =
+    cloudinary.utils.api_sign_request(
+      paramsToSign,
+      env.CLOUDINARY_API_SECRET,
+    );
+
+  return {
+    signature,
+    timestamp,
+    folder,
+    cloudName:
+      env.CLOUDINARY_CLOUD_NAME,
+    apiKey:
+      env.CLOUDINARY_API_KEY,
+  };
+}
+
+export async function attachProductImages(
+  productId: string,
+  input: AttachProductImagesInput,
+) {
+  const product =
+    await repository.findProductById(
+      productId,
+    );
+
+  if (!product) {
+    throw new NotFoundException(
+      "Product not found",
+    );
+  }
+
+  const existingPublicIds =
+    new Set(
+      product.images.map(
+        (image) => image.publicId,
+      ),
+    );
+
+  const duplicate =
+    input.images.find(
+      (image) =>
+        existingPublicIds.has(
+          image.publicId,
+        ),
+    );
+
+  if (duplicate) {
+    throw new BadRequestException(
+      "One or more images are already attached to this product",
+    );
+  }
+
+  const images =
+    await repository.attachProductImages(
+      productId,
+      input.images.map((image) => ({
+        url: image.url,
+        publicId: image.publicId,
+        isPrimary: false,
+      })),
+    );
+
+  await cache.remove(
+    CacheKeys.product(productId),
+  );
+
+  return images;
 }

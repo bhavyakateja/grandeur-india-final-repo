@@ -77,9 +77,14 @@ adminRouter.delete(
 );
 
 // Product images
+adminRouter.get(
+  "/products/:productId/images/upload-signature",
+  controller.getProductImageUploadSignature,
+);
+
 adminRouter.post(
   "/products/:productId/images",
-  controller.attachProductImage,
+  controller.attachProductImages,
 );
 
 adminRouter.patch(

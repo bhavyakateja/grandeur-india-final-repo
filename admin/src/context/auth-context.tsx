@@ -14,7 +14,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function restoreSession() {
   const response = await apiRequest<{ user: AdminUser; accessToken: string }>("/auth/refresh", { method: "POST" }, false);
-  if (response.user.role !== "ADMIN" && response.user.role !== "SUPER_ADMIN") {
+  if (response.user.role !== "ADMIN") {
     setAccessToken(null);
     throw new Error("This account does not have administrator access.");
   }
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await apiRequest<{ user: AdminUser; accessToken: string }>("/auth/login", {
       method: "POST", body: JSON.stringify({ email, password }),
     }, false);
-    if (response.user.role !== "ADMIN" && response.user.role !== "SUPER_ADMIN") {
+    if (response.user.role !== "ADMIN") {
       setAccessToken(null);
       throw new Error("This account does not have administrator access.");
     }

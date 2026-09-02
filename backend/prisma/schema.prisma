@@ -49,7 +49,6 @@ model User {
 enum Role {
   USER
   ADMIN
-  SUPER_ADMIN
 }
 
 model RefreshToken {
@@ -133,11 +132,12 @@ enum ProductStatus {
 }
 
 model Category {
-  id       String  @id @default(cuid())
-  name     String
-  slug     String  @unique
-  imageUrl String?
-  isActive Boolean @default(true)
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  imageUrl     String?
+  imagePublicId String?
+  isActive     Boolean   @default(true)
 
   products Product[]
 

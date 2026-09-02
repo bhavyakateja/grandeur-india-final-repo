@@ -1,5 +1,4 @@
 import { Prisma } from "../../generated/prisma/client";
-
 import * as repository from "./repository";
 
 import {
@@ -11,6 +10,8 @@ import {
 } from "../../exceptions/ConflictException";
 
 import { cache, CacheKeys } from "../redis";
+import cloudinary  from "@/config/cloudinary";
+import { env } from "../../config/env";
 
 import type {
   CategoryQuery,
@@ -71,7 +72,9 @@ export async function create(
     await repository.create({
       name: data.name,
       slug,
-      imageUrl: data.imageUrl,
+      imageUrl: data.imageUrl ?? null,
+      imagePublicId:
+        data.imagePublicId ?? null,
       isActive: data.isActive,
     });
 
@@ -105,7 +108,8 @@ export async function update(
   id: string,
   data: UpdateCategoryInput,
 ) {
-  await getById(id);
+  const existingCategory =
+    await getById(id);
 
   const updateData: Prisma.CategoryUpdateInput =
     {};
@@ -139,6 +143,11 @@ export async function update(
     updateData.imageUrl = data.imageUrl;
   }
 
+  if (data.imagePublicId !== undefined) {
+    updateData.imagePublicId =
+      data.imagePublicId;
+  }
+
   if (data.isActive !== undefined) {
     updateData.isActive = data.isActive;
   }
@@ -146,7 +155,7 @@ export async function update(
   if (
     Object.keys(updateData).length === 0
   ) {
-    return getById(id);
+    return existingCategory;
   }
 
   const category =
@@ -154,6 +163,33 @@ export async function update(
       id,
       updateData,
     );
+
+  /*
+   * If the image was replaced, clean up
+   * the previous Cloudinary asset.
+   */
+  if (
+    data.imagePublicId !== undefined &&
+    data.imagePublicId !==
+      existingCategory.imagePublicId
+  ) {
+    const oldPublicId =
+      existingCategory.imagePublicId;
+
+    if (oldPublicId) {
+      try {
+        await cloudinary.uploader.destroy(
+          oldPublicId,
+          {
+            resource_type: "image",
+          },
+        );
+      } catch {
+        // Do not fail the category update
+        // because Cloudinary cleanup failed.
+      }
+    }
+  }
 
   await invalidateCategoryCache(id);
 
@@ -163,12 +199,58 @@ export async function update(
 export async function remove(
   id: string,
 ) {
-  await getById(id);
-
   const category =
+    await getById(id);
+
+  const result =
     await repository.deactivate(id);
 
+  /*
+   * Category deletion is actually a soft
+   * deactivate operation. We deliberately
+   * keep the Cloudinary image because the
+   * database record still exists.
+   */
   await invalidateCategoryCache(id);
 
-  return category;
+  return result;
+}
+
+/**
+ * Generate a signed Cloudinary upload
+ * configuration for one category image.
+ *
+ * The API secret NEVER leaves the backend.
+ */
+export async function getImageUploadSignature(
+  categoryId: string,
+) {
+  await getById(categoryId);
+
+  const timestamp =
+    Math.floor(Date.now() / 1000);
+
+  const folder =
+    `ecommerce/categories/${categoryId}`;
+
+  const paramsToSign = {
+    timestamp,
+    folder,
+  };
+
+  const signature =
+    cloudinary.utils.api_sign_request(
+      paramsToSign,
+      env.CLOUDINARY_API_SECRET,
+    );
+
+  return {
+    signature,
+    timestamp,
+    folder,
+    cloudName:
+      env.CLOUDINARY_CLOUD_NAME,
+    apiKey:
+      env.CLOUDINARY_API_KEY,
+  };
 }

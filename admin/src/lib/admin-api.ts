@@ -1,13 +1,38 @@
-import { apiRequest, uploadFile } from "@/lib/api";
+import { apiRequest } from "@/lib/api";
 
-export type Role = "USER" | "ADMIN" | "SUPER_ADMIN";
+export type Role = "USER" | "ADMIN";
 export type ProductStatus = "DRAFT" | "ACTIVE" | "OUT_OF_STOCK" | "ARCHIVED";
 export type OrderStatus = "PENDING" | "CONFIRMED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
 export type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED" | "REFUNDED";
 export type PaymentProvider = "RAZORPAY";
+export interface ProductImageUploadSignature {
+  signature: string;
+  timestamp: number;
+  folder: string;
+  cloudName: string;
+  apiKey: string;
+}
 
-export interface Category { id: string; name: string; slug: string; isActive: boolean; products?: Product[] }
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  imageUrl: string | null;
+  imagePublicId: string | null;
+  isActive: boolean;
+  products?: Product[];
+  _count?: {
+    products: number;
+  };
+}
+export interface CategoryImageUploadSignature {
+  signature: string;
+  timestamp: number;
+  folder: string;
+  cloudName: string;
+  apiKey: string;
+}
 export interface ProductImage { id: string; url: string; publicId: string; isPrimary: boolean; createdAt: string; productId: string }
 export interface Product {
   id: string; name: string; slug: string; description: string; price: number | string; stock: number;
@@ -36,7 +61,7 @@ export interface DashboardData {
 export interface AnalyticsData extends Omit<DashboardData, "recentOrders"> {
   range: { from: string; to: string }; salesByDay: Array<{ date: string; orders: number; revenue: number }>;
 }
-export interface InventoryResponse { id: string; stock: number; status?: ProductStatus; [key: string]: unknown }
+export interface InventoryResponse { id: string; stock: number; status?: ProductStatus;[key: string]: unknown }
 export interface Review {
   id: string; rating: number; title: string | null; comment: string | null; status: ReviewStatus;
   createdAt: string; updatedAt?: string; user: { id: string; name: string; email: string };
@@ -106,19 +131,97 @@ export const adminApi = {
   createProduct: (input: ProductInput) => apiRequest<Product>("/products", { method: "POST", body: JSON.stringify(input) }),
   updateProduct: (id: string, input: Partial<ProductInput>) => apiRequest<Product>(`/products/${id}`, { method: "PUT", body: JSON.stringify(input) }),
   deleteProduct: (id: string) => apiRequest<{ success: boolean; message: string }>(`/products/${id}`, { method: "DELETE" }),
-  uploadProductImage: (file: File) => uploadFile<{ url: string; publicId: string }>(file, "products"),
-  attachProductImage: (productId: string, input: { url: string; publicId: string; isPrimary?: boolean }) =>
-    apiRequest<ProductImage>(`/admin/products/${productId}/images`, { method: "POST", body: JSON.stringify(input) }),
-  setPrimaryProductImage: (productId: string, imageId: string) =>
-    apiRequest<ProductImage>(`/admin/products/${productId}/images/${imageId}`, { method: "PATCH", body: JSON.stringify({ isPrimary: true }) }),
-  deleteProductImage: (productId: string, imageId: string) =>
-    apiRequest<{ success: boolean }>(`/admin/products/${productId}/images/${imageId}`, { method: "DELETE" }),
+  getProductImageUploadSignature: (
+    productId: string,
+  ) =>
+    apiRequest<ProductImageUploadSignature>(
+      `/admin/products/${productId}/images/upload-signature`,
+    ),
+
+  attachProductImages: (
+    productId: string,
+    images: Array<{
+      url: string;
+      publicId: string;
+    }>,
+  ) =>
+    apiRequest<ProductImage[]>(
+      `/admin/products/${productId}/images`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          images,
+        }),
+      },
+    ),
+
+  attachProductImage: (
+    productId: string,
+    input: {
+      url: string;
+      publicId: string;
+      isPrimary?: boolean;
+    },
+  ) =>
+    apiRequest<ProductImage>(
+      `/admin/products/${productId}/images`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+
+  setPrimaryProductImage: (
+    productId: string,
+    imageId: string,
+  ) =>
+    apiRequest<ProductImage>(
+      `/admin/products/${productId}/images/${imageId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          isPrimary: true,
+        }),
+      },
+    ),
+
+  deleteProductImage: (
+    productId: string,
+    imageId: string,
+  ) =>
+    apiRequest<{ success: boolean }>(
+      `/admin/products/${productId}/images/${imageId}`,
+      {
+        method: "DELETE",
+      },
+    ),
 
   categories: (search?: string) => apiRequest<Category[]>(`/categories${search ? `?${query({ search })}` : ""}`),
   category: (id: string) => apiRequest<Category>(`/categories/${id}`),
   createCategory: (input: { name: string; isActive?: boolean }) => apiRequest<Category>("/categories", { method: "POST", body: JSON.stringify(input) }),
-  updateCategory: (id: string, input: { name?: string; isActive?: boolean }) => apiRequest<Category>(`/categories/${id}`, { method: "PUT", body: JSON.stringify(input) }),
+  updateCategory: (
+  id: string,
+  input: {
+    name?: string;
+    imageUrl?: string | null;
+    imagePublicId?: string | null;
+    isActive?: boolean;
+  },
+) =>
+  apiRequest<Category>(
+    `/categories/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(input),
+    },
+  ),
   deleteCategory: (id: string) => apiRequest<{ success: boolean; message: string }>(`/categories/${id}`, { method: "DELETE" }),
+  getCategoryImageUploadSignature: (
+    categoryId: string,
+  ) =>
+    apiRequest<CategoryImageUploadSignature>(
+      `/categories/${categoryId}/image-upload-signature`,
+    ),
 
   inventory: (productId: string) => apiRequest<InventoryResponse>(`/inventory/${productId}`),
   setStock: (productId: string, stock: number) => apiRequest<InventoryResponse>(`/inventory/${productId}`, { method: "PATCH", body: JSON.stringify({ stock }) }),

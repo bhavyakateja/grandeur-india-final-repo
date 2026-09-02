@@ -9,7 +9,7 @@ export const userListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().trim().min(1).optional(),
-  role: z.enum(["USER", "ADMIN", "SUPER_ADMIN"]).optional(),
+  role: z.enum(["USER", "ADMIN"]).optional(),
   isActive: z
     .enum(["true", "false"])
     .transform((value) => value === "true")
@@ -19,7 +19,7 @@ export const userListQuerySchema = z.object({
 export const updateUserSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
   email: z.string().trim().email().optional(),
-  role: z.enum(["USER", "ADMIN", "SUPER_ADMIN"]).optional(),
+  role: z.enum(["USER", "ADMIN"]).optional(),
   isActive: z.boolean().optional(),
   isVerified: z.boolean().optional(),
 });
@@ -111,3 +111,25 @@ export type RefundPaymentInput = z.infer<
 export type AnalyticsQuery = z.infer<
   typeof analyticsQuerySchema
 >;
+
+export const attachProductImagesSchema =
+  z.object({
+    images: z
+      .array(
+        z.object({
+          url: z.string().url(),
+          publicId: z
+            .string()
+            .trim()
+            .min(1)
+            .max(500),
+        }),
+      )
+      .min(1)
+      .max(10),
+  });
+
+export type AttachProductImagesInput =
+  z.infer<
+    typeof attachProductImagesSchema
+  >;

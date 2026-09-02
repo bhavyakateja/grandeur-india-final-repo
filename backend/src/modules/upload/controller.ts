@@ -8,7 +8,7 @@ import * as service from "./service";
 export const uploadController = new Hono();
 
 uploadController.use("*", authMiddleware);
-uploadController.use("*", roleMiddleware("ADMIN", "SUPER_ADMIN"));
+uploadController.use("*", roleMiddleware("ADMIN"));
 
 uploadController.post("/", async (c) => {
   const body = await c.req.parseBody();

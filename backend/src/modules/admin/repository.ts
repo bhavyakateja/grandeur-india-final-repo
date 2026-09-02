@@ -864,3 +864,49 @@ export async function markRefunded(
     };
   });
 }
+
+export async function attachProductImages(
+  productId: string,
+  images: Array<{
+    url: string;
+    publicId: string;
+    isPrimary: boolean;
+  }>,
+) {
+  return prisma.$transaction(
+    async (tx) => {
+      const existing =
+        await tx.productImage.count({
+          where: {
+            productId,
+          },
+        });
+
+      let shouldAssignPrimary =
+        existing === 0;
+
+      const data = images.map(
+        (image, index) => {
+          const isPrimary =
+            shouldAssignPrimary &&
+            index === 0;
+
+          return {
+            productId,
+            url: image.url,
+            publicId: image.publicId,
+            isPrimary,
+          };
+        },
+      );
+
+      if (shouldAssignPrimary) {
+        shouldAssignPrimary = false;
+      }
+
+      return tx.productImage.createManyAndReturn({
+        data,
+      });
+    },
+  );
+}

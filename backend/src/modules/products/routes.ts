@@ -20,21 +20,21 @@ router.get("/:id", cache((c) => CacheKeys.product(c.req.param("id") ?? "")), con
 router.post(
   "/",
   authMiddleware,
-  roleMiddleware("ADMIN", "SUPER_ADMIN"),
+  roleMiddleware("ADMIN"),
   controller.create
 );
 
 router.put(
   "/:id",
   authMiddleware,
-  roleMiddleware("ADMIN", "SUPER_ADMIN"),
+  roleMiddleware("ADMIN"),
   controller.update
 );
 
 router.delete(
   "/:id",
   authMiddleware,
-  roleMiddleware("ADMIN", "SUPER_ADMIN"),
+  roleMiddleware("ADMIN"),
   controller.remove
 );
 

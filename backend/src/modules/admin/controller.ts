@@ -5,6 +5,7 @@ import * as service from "./service";
 import {
   analyticsQuerySchema,
   attachProductImageSchema,
+  attachProductImagesSchema,
   orderListQuerySchema,
   paymentListQuerySchema,
   refundPaymentSchema,
@@ -214,6 +215,41 @@ export const deleteProductImage = async (
       requiredParam(c, "imageId"),
     ),
     "Product image deleted successfully",
+  );
+};
+
+export const attachProductImages = async (
+  c: Context,
+) => {
+  const input =
+    attachProductImagesSchema.parse(
+      await c.req.json(),
+    );
+
+  return successResponse(
+    c,
+    await service.attachProductImages(
+      requiredParam(c, "productId"),
+      input,
+    ),
+    "Product images attached successfully",
+    201,
+  );
+};
+
+export const getProductImageUploadSignature = async (
+  c: Context,
+) => {
+  const productId = requiredParam(
+    c,
+    "productId",
+  );
+
+  return successResponse(
+    c,
+    await service.getProductImageUploadSignature(
+      productId,
+    ),
   );
 };
 

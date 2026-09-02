@@ -45,7 +45,7 @@ settingsController.get(
 settingsController.patch(
   "/",
   authMiddleware,
-  roleMiddleware("ADMIN", "SUPER_ADMIN"),
+  roleMiddleware("ADMIN"),
   zValidator(
     "json",
     updateSettingsSchema,

@@ -19,6 +19,14 @@ export const createCategorySchema = z.object({
     .nullable()
     .optional(),
 
+  imagePublicId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(500)
+    .nullable()
+    .optional(),
+
   isActive: z
     .boolean()
     .default(true),

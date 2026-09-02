@@ -1,6 +1,5 @@
 import { prisma } from "../../db/prisma";
 import { Prisma } from "../../generated/prisma/client";
-
 import type { CategoryQuery } from "./schema";
 
 const categorySelect = {
@@ -8,6 +7,7 @@ const categorySelect = {
   name: true,
   slug: true,
   imageUrl: true,
+  imagePublicId: true,
   isActive: true,
 } satisfies Prisma.CategorySelect;
 
@@ -46,6 +46,7 @@ export function findAll(
 ) {
   const where: Prisma.CategoryWhereInput = {
     isActive: true,
+
     ...(query.search
       ? {
           name: {
