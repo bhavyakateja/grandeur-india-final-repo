@@ -108,15 +108,16 @@ export function AuthDialog({ open, onOpenChange, defaultTab = "login" }: AuthDia
         overlayClassName="bg-black/60 backdrop-blur-sm"
         className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-[#c89a4b]/30 bg-gradient-to-b from-[#ffffff] via-[#fefcf8] to-[#fbf7ee] p-7 shadow-2xl sm:p-9"
       >
-        {/* Brand Crest */}
-        <div className="mx-auto mb-1 flex size-12 items-center justify-center rounded-full border border-[#c89a4b]/30 bg-gradient-to-b from-[#fdf9f0] to-[#f5ead6] p-2 shadow-xs">
-          <img src={logo} alt="Grandeur" className="h-full w-full object-contain" />
+        {/* Brand Logo */}
+        <div className="mx-auto mb-2 flex h-16 w-44 items-center justify-center">
+          <img
+            src={logo}
+            alt="Grandeur"
+            className="h-full w-full object-contain"
+          />
         </div>
 
         <DialogHeader className="text-center sm:text-center">
-          <p className="text-[10px] font-medium uppercase tracking-[0.35em] text-[#c89a4b]">
-            GRANDEUR
-          </p>
           <DialogTitle className="mt-1 font-display text-2xl font-normal tracking-wide text-[#102650] sm:text-3xl">
             {tab === "login" ? "Welcome Back to Grandeur" : "Join Grandeur"}
           </DialogTitle>

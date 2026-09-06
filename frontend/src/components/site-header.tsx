@@ -1,58 +1,121 @@
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowRight,
+  ChevronDown,
   Heart,
   Menu,
-  Search,
+  Phone,
   ShoppingBag,
   User as UserIcon,
-  ChevronDown,
-  Phone,
 } from "lucide-react";
+import useEmblaCarousel from "embla-carousel-react";
+
 import logo from "@/assets/grandeur-logo.png";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/context/auth-context";
-import { useCategories, useProducts } from "@/hooks/use-api";
 import { AuthDialog } from "@/components/auth-dialog";
 import { cn } from "@/lib/utils";
+
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import {
-  CommandDialog,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { formatINR } from "@/lib/utils";
+
+import necklaceImg from "../assets/category-carousel/necklace.png";
+import earringImg from "../assets/category-carousel/earring.png";
+import braceletImg from "../assets/category-carousel/bracelet.png";
+import pendantImg from "../assets/category-carousel/pendant.png";
+import ringImg from "../assets/category-carousel/ring.png";
+import beadImg from "../assets/category-carousel/bead.png";
+
+/* =============================================================
+   SHOP GRANDEUR CATEGORIES
+============================================================= */
+
+const SHOP_CATEGORIES = [
+  {
+    number: "01",
+    name: "Necklaces",
+    slug: "necklaces",
+    image: necklaceImg,
+    description: "Statement & everyday",
+  },
+  {
+    number: "02",
+    name: "Earrings",
+    slug: "earrings",
+    image: earringImg,
+    description: "Sculptural silhouettes",
+  },
+  {
+    number: "03",
+    name: "Bracelets",
+    slug: "bracelets",
+    image: braceletImg,
+    description: "Modern classics",
+  },
+  {
+    number: "04",
+    name: "Pendants",
+    slug: "pendants",
+    image: pendantImg,
+    description: "Delicate signatures",
+  },
+  {
+    number: "05",
+    name: "Rings",
+    slug: "rings",
+    image: ringImg,
+    description: "Solitaires & bands",
+  },
+  {
+    number: "06",
+    name: "Beads",
+    slug: "beads",
+    image: beadImg,
+    description: "Colour & character",
+  },
+] as const;
+
+/* =============================================================
+   PRIMARY NAVIGATION
+============================================================= */
 
 type NavItem = {
   label: string;
   to: string;
-  search?: string;
 };
 
 const navItems: NavItem[] = [
-  { label: "Home", to: "/" },
-  { label: "All Jewellery", to: "/products" },
-  { label: "Our Story", to: "/about" },
-  { label: "Contact", to: "/contact" },
+  {
+    label: "Home",
+    to: "/",
+  },
+  {
+    label: "All Jewellery",
+    to: "/products",
+  },
+  {
+    label: "Our Story",
+    to: "/about",
+  },
+  {
+    label: "Contact",
+    to: "/contact",
+  },
 ];
+
+/* =============================================================
+   SITE HEADER
+============================================================= */
 
 export function SiteHeader() {
   const { cartCount, wishlist } = useStore();
   const { user, isAuthenticated } = useAuth();
-  const { data: apiCategories } = useCategories();
-
-  const categories = Array.isArray(apiCategories) ? apiCategories : [];
 
   const [scrolled, setScrolled] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
@@ -60,87 +123,115 @@ export function SiteHeader() {
 
   const navigate = useNavigate();
   const location = useLocation();
+
   const catMenuRef = useRef<HTMLLIElement>(null);
+  const catCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Close the Shop-by-Category menu when clicking outside or pressing Escape.
+  /* =========================================================
+     CLOSE CATEGORY MENU
+  ========================================================= */
+
   useEffect(() => {
-    const open = categoryMenuOpen || categoryMenuHover;
-    if (!open) return;
+    const isOpen = categoryMenuOpen || categoryMenuHover;
 
-    const onOutside = (e: MouseEvent) => {
-      if (catMenuRef.current && !catMenuRef.current.contains(e.target as Node)) {
-        setCategoryMenuOpen(false);
-        setCategoryMenuHover(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+    if (!isOpen) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        catMenuRef.current &&
+        !catMenuRef.current.contains(event.target as Node)
+      ) {
         setCategoryMenuOpen(false);
         setCategoryMenuHover(false);
       }
     };
 
-    document.addEventListener("mousedown", onOutside);
-    document.addEventListener("keydown", onKey);
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCategoryMenuOpen(false);
+        setCategoryMenuHover(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+
     return () => {
-      document.removeEventListener("mousedown", onOutside);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [categoryMenuOpen, categoryMenuHover]);
 
-  // Keep the menu open while the cursor lingers between trigger and panel,
-  // and give the user a moment to move in without it flickering closed.
-  const catCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* =========================================================
+     CLEAN CATEGORY MENU TIMER
+  ========================================================= */
+
+  useEffect(() => {
+    return () => {
+      if (catCloseTimer.current) {
+        clearTimeout(catCloseTimer.current);
+      }
+    };
+  }, []);
+
   const openCategoryMenu = () => {
-    if (catCloseTimer.current) clearTimeout(catCloseTimer.current);
+    if (catCloseTimer.current) {
+      clearTimeout(catCloseTimer.current);
+      catCloseTimer.current = null;
+    }
+
     setCategoryMenuHover(true);
     setCategoryMenuOpen(true);
   };
+
   const closeCategoryMenu = () => {
-    if (catCloseTimer.current) clearTimeout(catCloseTimer.current);
-    // Short grace period so crossing from the trigger into the panel does
-    // not cause flicker. Once the cursor leaves the whole menu region it
-    // closes. Click-outside and Escape close it immediately as well.
+    if (catCloseTimer.current) {
+      clearTimeout(catCloseTimer.current);
+    }
+
     catCloseTimer.current = setTimeout(() => {
       setCategoryMenuHover(false);
       setCategoryMenuOpen(false);
-    }, 150);
+      catCloseTimer.current = null;
+    }, 180);
   };
 
-  const { data: searchResults } = useProducts({
-    search: searchTerm || undefined,
-    limit: 10,
-  });
+  /* =========================================================
+     SCROLL STATE
+  ========================================================= */
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
-
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 12);
     };
 
-    window.addEventListener("keydown", onKey);
+    handleScroll();
 
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, []);
+
+  /* =========================================================
+     ACCOUNT
+  ========================================================= */
 
   const handleAccountClick = () => {
     if (isAuthenticated) {
       navigate("/profile");
-    } else {
-      setAuthOpen(true);
+      return;
     }
+
+    setAuthOpen(true);
   };
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
 
   return (
     <>
@@ -149,111 +240,156 @@ export function SiteHeader() {
           className={cn(
             "bg-[#fdeDEE] transition-all duration-500",
             scrolled &&
-            "shadow-[0_10px_30px_-24px_rgba(20,35,70,0.55)]",
+              "shadow-[0_10px_30px_-24px_rgba(16,38,80,0.55)]",
           )}
         >
+          {/* ===================================================
+              TOP HEADER
+          =================================================== */}
+
           <div
             className={cn(
-              "mx-auto grid max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-4 transition-all duration-500 sm:px-6",
-              scrolled ? "py-2" : "py-3 md:py-4",
+              "relative mx-auto flex max-w-7xl items-center justify-between px-6 transition-all duration-500 sm:px-8 lg:px-12",
+              scrolled
+                ? "h-16"
+                : "h-[88px]",
             )}
           >
-            <div className="flex items-center gap-1">
-              <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            {/* =================================================
+                LEFT — MOBILE MENU
+            ================================================= */}
+
+            <div className="flex items-center lg:w-32">
+              <Sheet
+                open={menuOpen}
+                onOpenChange={setMenuOpen}
+              >
                 <SheetTrigger
-                  className="-ml-2 grid size-10 shrink-0 place-items-center rounded-full text-navy transition-colors hover:bg-blush-deep lg:hidden"
-                  aria-label="Open menu"
+                  type="button"
+                  className="grid size-10 place-items-center text-navy transition-colors hover:text-gold-dark active:scale-95 lg:hidden"
+                  aria-label="Open navigation menu"
                 >
-                  <Menu className="size-5" />
+                  <Menu
+                    className="size-5"
+                    strokeWidth={1.5}
+                  />
                 </SheetTrigger>
 
                 <SheetContent
                   side="left"
-                  className="w-[86vw] max-w-sm bg-[#fdeDEE] p-0"
+                  className="w-[86vw] max-w-sm border-r border-navy/10 bg-[#fdeDEE] p-0"
                 >
                   <div className="flex h-full flex-col overflow-y-auto p-6">
-                    <img
-                      src={logo}
-                      alt="Grandeur"
-                      className="h-12 w-auto self-start"
-                    />
+                    {/* Mobile logo */}
 
-                    <nav className="mt-8 flex flex-col gap-1">
+                    <Link
+                      to="/"
+                      onClick={() => setMenuOpen(false)}
+                      className="inline-flex"
+                    >
+                      <img
+                        src={logo}
+                        alt="Grandeur — Luxury Statement Jewellery"
+                        className="h-12 w-auto object-contain"
+                      />
+                    </Link>
+
+                    {/* Primary navigation */}
+
+                    <nav className="mt-10 flex flex-col gap-1">
                       {navItems.map((item) => (
                         <Link
                           key={item.label}
                           to={item.to}
-                          state={{ search: item.search }}
                           onClick={() => setMenuOpen(false)}
-                          className="font-display text-2xl text-navy"
+                          className={cn(
+                            "font-display text-2xl text-navy transition-colors hover:text-gold-dark",
+                            location.pathname === item.to &&
+                              "text-gold-dark",
+                          )}
                         >
                           {item.label}
                         </Link>
                       ))}
                     </nav>
 
-                    <p className="eyebrow mt-8 text-navy/50">
+                    {/* Categories */}
+
+                    <p className="eyebrow mt-10 text-navy/50">
                       Shop by category
                     </p>
 
                     <div className="mt-3 grid grid-cols-2 gap-3">
-                      {categories.map((category) => (
+                      {SHOP_CATEGORIES.map((category) => (
                         <Link
-                          key={category.id || category.slug}
+                          key={category.slug}
                           to={`/category/${category.slug}`}
                           onClick={() => setMenuOpen(false)}
-                          className="overflow-hidden rounded-sm bg-background p-3"
+                          className="group overflow-hidden bg-white"
                         >
-                          <span className="block text-xs font-medium tracking-[0.14em] text-navy uppercase">
-                            {category.name}
-                          </span>
+                          <div className="aspect-[4/5] overflow-hidden bg-blush">
+                            <img
+                              src={category.image}
+                              alt={`${category.name} — Grandeur luxury jewellery`}
+                              loading="lazy"
+                              width={800}
+                              height={1000}
+                              className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                            />
+                          </div>
+
+                          <div className="p-3">
+                            <p className="text-[8px] uppercase tracking-[0.18em] text-navy/40">
+                              {category.number}
+                            </p>
+
+                            <p className="mt-1 font-display text-base text-navy">
+                              {category.name}
+                            </p>
+                          </div>
                         </Link>
                       ))}
                     </div>
-
-                    <Link to="/contact" onClick={() => setMenuOpen(false)} className="mt-8 flex items-center gap-2 text-sm text-navy/70">
-                      <Phone className="size-4" />
-                      Contact support
-                    </Link>
                   </div>
                 </SheetContent>
               </Sheet>
-
-              <button
-                onClick={() => setSearchOpen(true)}
-                className="hidden items-center gap-2 rounded-full border border-navy/15 bg-background/70 px-4 py-2 text-xs tracking-[0.16em] text-navy/60 uppercase transition-colors hover:border-navy/35 lg:flex"
-              >
-                <Search className="size-4" />
-                Search
-              </button>
             </div>
 
-            <Link to="/" className="justify-self-center">
+            {/* =================================================
+                CENTER — LOGO
+            ================================================= */}
+
+            <Link
+              to="/"
+              aria-label="Grandeur home"
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            >
               <img
                 src={logo}
-                alt="Grandeur — fine jewellery"
+                alt="Grandeur — Luxury Statement Jewellery"
                 className={cn(
-                  "w-auto transition-all duration-500",
-                  scrolled ? "h-10 md:h-11" : "h-12 md:h-16",
+                  "w-auto object-contain transition-all duration-500",
+                  scrolled
+                    ? "h-10 md:h-11"
+                    : "h-12 md:h-16",
                 )}
               />
             </Link>
 
-            <div className="flex items-center gap-0.5 justify-self-end sm:gap-1">
-              <IconBtn
-                label="Search"
-                onClick={() => setSearchOpen(true)}
-                className="lg:hidden"
-              >
-                <Search className="size-5" />
-              </IconBtn>
+            {/* =================================================
+                RIGHT — ACCOUNT ACTIONS
+            ================================================= */}
 
+            <div className="ml-auto flex items-center gap-0.5 sm:gap-1">
               <IconBtn
                 label="Wishlist"
                 onClick={() => navigate("/wishlist")}
                 badge={wishlist.length}
               >
-                <Heart className="size-5" />
+                <Heart
+                  className="size-[19px]"
+                  strokeWidth={1.5}
+                />
               </IconBtn>
 
               <IconBtn
@@ -264,30 +400,52 @@ export function SiteHeader() {
                 }
                 onClick={handleAccountClick}
               >
-                <UserIcon className="size-5" />
+                <UserIcon
+                  className="size-[19px]"
+                  strokeWidth={1.5}
+                />
               </IconBtn>
 
               <IconBtn
-                label="Cart"
+                label="Shopping bag"
                 onClick={() => navigate("/cart")}
                 badge={cartCount}
               >
-                <ShoppingBag className="size-5" />
+                <ShoppingBag
+                  className="size-[19px]"
+                  strokeWidth={1.5}
+                />
               </IconBtn>
             </div>
           </div>
 
-          <nav className="hidden border-t border-navy/10 bg-[#fdeDEE] lg:block">
-            <ul className="mx-auto flex max-w-7xl items-center justify-center gap-9 px-6">
-              {navItems.slice(0, 2).map((item) => (
-                <TopLink
-                  key={item.label}
-                  to={item.to}
-                  active={location.pathname === item.to}
-                >
-                  {item.label}
-                </TopLink>
-              ))}
+          {/* ===================================================
+              DESKTOP NAVIGATION
+          =================================================== */}
+
+          <nav className="hidden border-t border-navy/[0.08] lg:block">
+            <ul className="mx-auto flex max-w-7xl items-center justify-center gap-10 px-6">
+              {/* Home */}
+
+              <TopLink
+                to="/"
+                active={location.pathname === "/"}
+              >
+                Home
+              </TopLink>
+
+              {/* All Jewellery */}
+
+              <TopLink
+                to="/products"
+                active={location.pathname === "/products"}
+              >
+                All Jewellery
+              </TopLink>
+
+              {/* =================================================
+                  SHOP BY CATEGORY
+              ================================================= */}
 
               <li
                 ref={catMenuRef}
@@ -299,13 +457,16 @@ export function SiteHeader() {
                   type="button"
                   aria-haspopup="true"
                   aria-expanded={categoryMenuOpen}
-                  onClick={() =>
-                    categoryMenuOpen
-                      ? setCategoryMenuOpen(false)
-                      : openCategoryMenu()
-                  }
+                  onClick={() => {
+                    if (categoryMenuOpen) {
+                      setCategoryMenuOpen(false);
+                      setCategoryMenuHover(false);
+                    } else {
+                      openCategoryMenu();
+                    }
+                  }}
                   className={cn(
-                    "flex items-center gap-1.5 py-3 text-[11px] tracking-[0.2em] text-navy uppercase transition-colors",
+                    "flex items-center gap-1.5 py-3.5 text-[10px] font-medium uppercase tracking-[0.22em] text-navy transition-colors hover:text-gold-dark",
                     categoryMenuOpen && "text-gold-dark",
                   )}
                 >
@@ -313,152 +474,176 @@ export function SiteHeader() {
 
                   <ChevronDown
                     className={cn(
-                      "size-3.5 transition-transform duration-300",
+                      "size-3 transition-transform duration-300",
                       categoryMenuOpen && "rotate-180",
                     )}
+                    strokeWidth={1.4}
                   />
                 </button>
 
-                {/* Shop by Category — floating opaque panel */}
+                {/* =================================================
+                    CATEGORY DROPDOWN
+                ================================================= */}
+
                 <div
                   aria-hidden={!categoryMenuOpen}
                   className={cn(
-                    "pointer-events-none absolute top-full left-1/2 z-[60] opacity-0 transition-all duration-300",
-                    "-translate-x-1/2 translate-y-2",
+                    "pointer-events-none absolute left-1/2 top-full z-[60] -translate-x-1/2 translate-y-2 opacity-0 transition-all duration-300",
                     categoryMenuOpen &&
                       "pointer-events-auto translate-y-0 opacity-100",
                   )}
                 >
-                  <div className="mt-2 w-[min(76rem,calc(100vw-2rem))] overflow-hidden rounded-sm border border-navy/15 bg-[#fffaf7] shadow-[0_28px_70px_-30px_rgba(16,38,80,0.5)]">
-                    <div className="grid grid-cols-2 gap-x-10 gap-y-0 border-b border-navy/10 p-8 sm:grid-cols-4 lg:grid-cols-5">
-                      {/* Primary shop link */}
-                      <div>
-                        <p className="eyebrow text-gold-dark">Browse</p>
-                        <div className="mt-3 space-y-2.5">
-                          <Link
-                            to="/products"
-                            onClick={() => setCategoryMenuOpen(false)}
-                            className="block text-[13px] text-navy transition-colors hover:text-gold-dark"
-                          >
-                            All Jewellery
-                          </Link>
-                          <Link
-                            to="/products?occasion=bridal"
-                            onClick={() => setCategoryMenuOpen(false)}
-                            className="block text-[13px] text-navy transition-colors hover:text-gold-dark"
-                          >
-                            Bridal
-                          </Link>
-                        </div>
-                      </div>
-
-                      {/* Dynamic categories from the backend */}
-                      {categories
-                        .filter((c) => c.isActive)
-                        .slice(0, 4)
-                        .map((category) => (
-                          <div key={category.id || category.slug}>
-                            <p className="eyebrow text-gold-dark">
-                              {category.name}
-                            </p>
-                            <div className="mt-3 space-y-2.5">
-                              <Link
-                                key={category.id + "-all"}
-                                to={`/category/${category.slug}`}
-                                onClick={() => setCategoryMenuOpen(false)}
-                                className="block text-[13px] text-navy transition-colors hover:text-gold-dark"
-                              >
-                                Shop {category.name}
-                              </Link>
-                            </div>
-                          </div>
-                      ))}
-                    </div>
-
-                    {/* Footer strip — value messaging */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 bg-[#fdf0ef] px-8 py-4">
-                      <p className="text-[11px] uppercase tracking-[0.2em] text-navy/60">
-                        Fine jewellery, crafted to be treasured
-                      </p>
-                      <Link
-                        to="/products"
-                        onClick={() => setCategoryMenuOpen(false)}
-                        className="text-[11px] uppercase tracking-[0.18em] text-gold-dark hover:text-navy"
-                      >
-                        Explore the collection →
-                      </Link>
-                    </div>
+                  <div
+                    className="mt-2 w-[min(72rem,calc(100vw-2rem))] overflow-hidden border border-navy/[0.08] bg-[#fffaf7] shadow-[0_28px_70px_-30px_rgba(16,38,80,0.5)]"
+                    onMouseEnter={openCategoryMenu}
+                    onMouseLeave={closeCategoryMenu}
+                  >
+                    <HeaderCategoryCarousel />
                   </div>
                 </div>
               </li>
 
-              {navItems.slice(2).map((item) => (
-                <TopLink
-                  key={item.label}
-                  to={item.to}
-                  active={
-                    location.pathname === item.to &&
-                    !item.search
-                  }
-                >
-                  {item.label}
-                </TopLink>
-              ))}
+              {/* Our Story */}
+
+              <TopLink
+                to="/about"
+                active={location.pathname === "/about"}
+              >
+                Our Story
+              </TopLink>
+
+              {/* Contact */}
+
+              <TopLink
+                to="/contact"
+                active={location.pathname === "/contact"}
+              >
+                Contact
+              </TopLink>
             </ul>
           </nav>
         </div>
-
-        <CommandDialog
-          open={searchOpen}
-          onOpenChange={setSearchOpen}
-        >
-          <CommandInput
-            placeholder="Search rings, necklaces, polki…"
-            value={searchTerm}
-            onValueChange={setSearchTerm}
-          />
-
-          <CommandList>
-            <CommandEmpty>
-              No products found matching "{searchTerm}".
-            </CommandEmpty>
-
-            <CommandGroup heading="Products">
-              {searchResults?.products?.map((product) => (
-                <CommandItem
-                  key={product.id}
-                  value={`${product.name} ${product.category?.name || ""}`}
-                  onSelect={() => {
-                    setSearchOpen(false);
-                    navigate(`/product/${product.id}`);
-                  }}
-                >
-                  {product.images?.[0]?.url && (
-                    <img
-                      src={product.images[0].url}
-                      alt=""
-                      className="mr-3 size-9 rounded-sm object-cover"
-                    />
-                  )}
-
-                  <span className="flex-1 font-medium">
-                    {product.name}
-                  </span>
-
-                  <span className="text-xs text-muted-foreground">
-                    {formatINR(Number(product.price))}
-                  </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </CommandDialog>
       </header>
 
-      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
+      {/* =======================================================
+          AUTH DIALOG
+      ======================================================= */}
+
+      <AuthDialog
+        open={authOpen}
+        onOpenChange={setAuthOpen}
+      />
     </>
   );
 }
+
+/* =============================================================
+   HEADER CATEGORY CAROUSEL
+============================================================= */
+
+function HeaderCategoryCarousel() {
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    align: "start",
+    loop: true,
+    dragFree: true,
+    skipSnaps: false,
+  });
+
+  const [isHovered, setIsHovered] = useState(false);
+
+  /* -----------------------------------------------------------
+     AUTO SCROLL
+  ----------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!emblaApi || isHovered) return;
+
+    const interval = window.setInterval(() => {
+      emblaApi.scrollNext();
+    }, 3000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [emblaApi, isHovered]);
+
+  return (
+    <div
+      className="px-5 py-5 sm:px-6"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div
+        ref={emblaRef}
+        className="overflow-hidden"
+      >
+        <div className="-ml-2.5 flex touch-pan-y">
+          {SHOP_CATEGORIES.map((category) => (
+            <div
+              key={category.slug}
+              className="min-w-0 shrink-0 basis-[58%] pl-2.5 sm:basis-[31%] lg:basis-[24%]"
+            >
+              <Link
+                to={`/category/${category.slug}`}
+                className="group block"
+              >
+                <div className="relative aspect-[5/4] overflow-hidden bg-blush">
+                  <img
+                    src={category.image}
+                    alt={`${category.name} — Grandeur luxury jewellery collection`}
+                    loading="lazy"
+                    width={800}
+                    height={640}
+                    className="h-full w-full object-cover transition-transform duration-[1000ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.045]"
+                  />
+
+                  {/* Soft overlay */}
+
+                  <div className="absolute inset-0 bg-gradient-to-t from-navy/80 via-navy/5 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
+
+                  {/* Category number */}
+
+                  <div className="absolute left-3 top-3">
+                    <span className="text-[7px] font-medium tracking-[0.18em] text-white/75">
+                      {category.number}
+                    </span>
+                  </div>
+
+                  {/* Hover arrow */}
+
+                  <div className="absolute right-3 top-3 grid size-7 translate-y-1 place-items-center border border-white/40 text-white opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
+                    <ArrowRight
+                      className="size-3"
+                      strokeWidth={1.2}
+                    />
+                  </div>
+
+                  {/* Category information */}
+
+                  <div className="absolute inset-x-3 bottom-3">
+                    <h3 className="font-display text-lg leading-none text-white">
+                      {category.name}
+                    </h3>
+
+                    <p className="mt-1 text-[7px] uppercase tracking-[0.13em] text-white/65">
+                      {category.description}
+                    </p>
+
+                    <div className="mt-1.5 h-px w-5 bg-white/55 transition-all duration-500 group-hover:w-9" />
+                  </div>
+                </div>
+              </Link>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =============================================================
+   ICON BUTTON
+============================================================= */
 
 function IconBtn({
   children,
@@ -475,23 +660,28 @@ function IconBtn({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       aria-label={label}
       className={cn(
-        "relative grid size-10 place-items-center rounded-full text-navy transition-all duration-300 hover:bg-blush-deep active:scale-95",
+        "relative grid size-10 place-items-center text-navy transition-all duration-300 hover:text-gold-dark active:scale-95",
         className,
       )}
     >
       {children}
 
       {!!badge && (
-        <span className="absolute top-1 right-0.5 grid min-w-4 place-items-center rounded-full bg-navy px-1 text-[10px] leading-4 text-navy-foreground">
+        <span className="absolute right-0 top-1 grid min-w-4 place-items-center rounded-full bg-gold-dark px-1 text-[9px] font-medium leading-4 text-white">
           {badge}
         </span>
       )}
     </button>
   );
 }
+
+/* =============================================================
+   TOP NAVIGATION LINK
+============================================================= */
 
 function TopLink({
   to,
@@ -507,8 +697,8 @@ function TopLink({
       <Link
         to={to}
         className={cn(
-          "link-underline block py-3 text-[11px] tracking-[0.2em] text-navy uppercase transition-opacity hover:opacity-80",
-          active && "font-medium",
+          "link-underline block py-3.5 text-[10px] font-medium uppercase tracking-[0.22em] text-navy transition-colors hover:text-gold-dark",
+          active && "text-gold-dark",
         )}
       >
         {children}

@@ -1,153 +1,415 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingBag, Tag } from "lucide-react";
-import { toast } from "sonner";
+import {
+  ArrowRight,
+  Minus,
+  Plus,
+  ShoppingBag,
+  Trash2,
+} from "lucide-react";
+
 import { formatINR } from "@/lib/utils";
 import { useStore } from "@/lib/store";
-import { useApplyCoupon } from "@/hooks/use-api";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { useWishlist } from "@/hooks/use-api";
+import { ProductCard } from "@/components/product-card";
+import { useAuth } from "@/context/auth-context";
 
 function CartPage() {
-  const { lines, setQty, removeFromCart, subtotal } = useStore();
-  const [couponCode, setCouponCode] = useState("");
-  const [appliedDiscount, setAppliedDiscount] = useState(0);
-  const [couponApplied, setCouponApplied] = useState(false);
+  const {
+    lines,
+    setQty,
+    removeFromCart,
+  } = useStore();
 
-  const applyCouponMutation = useApplyCoupon();
+  const { isAuthenticated } = useAuth();
 
-  const handleApplyCoupon = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!couponCode.trim()) return;
+  const {
+    data: wishlistData = [],
+    isLoading: wishlistLoading,
+  } = useWishlist();
 
-    try {
-      const res = await applyCouponMutation.mutateAsync({
-        code: couponCode.trim(),
-        subtotal,
-      });
+  const wishlistProducts = wishlistData
+    .map((item) => item.product)
+    .filter(Boolean)
+    .slice(0, 4);
 
-      setAppliedDiscount(Number(res.discount));
-      setCouponApplied(true);
-      toast.success("Coupon applied successfully");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to apply coupon");
-    }
-  };
-
-  const estimatedTotal = Math.max(0, subtotal - appliedDiscount);
+  const subtotal = lines.reduce(
+    (sum, line) =>
+      sum + Number(line.product.price) * line.qty,
+    0,
+  );
 
   if (lines.length === 0) {
     return (
-      <div className="mx-auto max-w-xl px-6 py-28 text-center">
-        <ShoppingBag className="mx-auto size-10 text-gold" />
-        <h1 className="mt-6 font-display text-4xl">Your bag is empty</h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Discover pieces made to be worn every day and passed on for generations.
-        </p>
-        <Link
-          to="/products"
-          className="mt-8 inline-block rounded-sm bg-navy px-8 py-4 text-[11px] tracking-[0.22em] text-navy-foreground uppercase"
-        >
-          Start shopping
-        </Link>
-      </div>
+      <main className="bg-white">
+        <section className="mx-auto max-w-2xl px-5 py-24 text-center sm:py-32">
+          <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-[#c89a4b]/25 bg-[#fdf7f4]">
+            <ShoppingBag className="size-5 text-[#c89a4b]" />
+          </div>
+
+          <p className="mt-7 text-[9px] font-medium uppercase tracking-[0.3em] text-[#c89a4b]">
+            Your selection
+          </p>
+
+          <h1 className="mt-3 font-display text-4xl text-[#102650] sm:text-5xl">
+            Your bag is empty
+          </h1>
+
+          <div className="mx-auto mt-4 h-px w-12 bg-[#c89a4b]/60" />
+
+          <p className="mx-auto mt-6 max-w-md text-sm leading-7 text-[#102650]/60">
+            Discover pieces made to be worn every day,
+            treasured for years, and passed on through
+            generations.
+          </p>
+
+          <Link
+            to="/products"
+            className="group mt-9 inline-flex h-13 items-center gap-3 bg-[#102650] px-8 py-4 text-[10px] font-medium uppercase tracking-[0.23em] text-white transition-colors hover:bg-[#18325f]"
+          >
+            Explore the collection
+            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+          </Link>
+        </section>
+
+        <WishlistSection
+          products={wishlistProducts}
+          loading={wishlistLoading}
+          authenticated={isAuthenticated}
+        />
+      </main>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-      <h1 className="font-display text-4xl">Shopping Bag</h1>
-      <div className="gold-rule mt-3" />
+    <main className="bg-white">
+      {/* Page introduction */}
+      <section className="mx-auto max-w-7xl px-5 pb-8 pt-12 sm:px-8 sm:pt-16 lg:px-12">
+        <div className="flex items-end justify-between gap-6">
+          <div>
+            <p className="text-[9px] font-medium uppercase tracking-[0.3em] text-[#c89a4b]">
+              Your selection
+            </p>
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <ul className="divide-y divide-border">
-          {lines.map(({ product, qty, itemId }) => {
-            const price = Number(product.price);
-            const imageUrl = product.images?.[0]?.url || "";
-            const idToUse = itemId || product.id;
+            <h1 className="mt-3 font-display text-4xl text-[#102650] sm:text-5xl">
+              Shopping Bag
+            </h1>
 
-            return (
-              <li key={product.id} className="grid grid-cols-[96px_minmax(0,1fr)] gap-4 py-6 sm:grid-cols-[128px_minmax(0,1fr)]">
-                <Link
-                  to={`/product/${product.id}`}
-                  className="overflow-hidden rounded-sm bg-blush"
-                >
-                  {imageUrl ? <img src={imageUrl} alt={product.name} loading="lazy" className="aspect-[4/5] w-full object-cover" /> : <div className="aspect-[4/5] w-full bg-gradient-blush" aria-label="Product image unavailable" />}
-                </Link>
-                <div className="min-w-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h2 className="truncate font-display text-xl">{product.name}</h2>
-                      <p className="mt-0.5 text-xs tracking-[0.12em] text-muted-foreground uppercase">
-                        {product.category?.name || "Jewellery"}
-                      </p>
+            <div className="mt-4 h-px w-12 bg-[#c89a4b]/60" />
+
+            <p className="mt-5 text-xs tracking-[0.08em] text-[#102650]/60">
+              {lines.length}{" "}
+              {lines.length === 1 ? "piece" : "pieces"} selected
+            </p>
+          </div>
+
+          <Link
+            to="/products"
+            className="group hidden items-center gap-2 pb-1 text-[9px] font-medium uppercase tracking-[0.2em] text-[#102650]/60 transition-colors hover:text-[#102650] sm:flex"
+          >
+            Continue shopping
+            <ArrowRight className="size-3 text-[#c89a4b] transition-transform group-hover:translate-x-1" />
+          </Link>
+        </div>
+      </section>
+
+      {/* Cart */}
+      <section className="mx-auto max-w-7xl px-5 pb-20 sm:px-8 lg:px-12">
+        <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-20">
+          <div>
+            <div className="hidden border-b border-[#102650]/10 pb-3 text-[9px] font-medium uppercase tracking-[0.22em] text-[#102650]/50 sm:grid sm:grid-cols-[1fr_150px]">
+              <span>Piece</span>
+              <span className="text-right">Total</span>
+            </div>
+
+            <ul className="divide-y divide-[#102650]/10">
+              {lines.map(({ product, qty, itemId }) => {
+                const price = Number(product.price) || 0;
+                const imageUrl =
+                  product.images?.[0]?.url || "";
+                const idToUse =
+                  itemId || product.id;
+
+                const maxQuantity = Math.max(
+                  1,
+                  Number(product.stock) || 1,
+                );
+
+                return (
+                  <li
+                    key={product.id}
+                    className="py-6 sm:py-8"
+                  >
+                    {/* Consistent 3-column structural layout for mobile, tablet, and desktop */}
+                    <div className="grid grid-cols-[88px_minmax(0,1fr)_120px] gap-4 sm:grid-cols-[132px_minmax(0,1fr)_160px] sm:gap-7 items-start">
+                      <Link
+                        to={`/product/${product.id}`}
+                        className="group block overflow-hidden bg-[#fdf0ef]"
+                      >
+                        <div className="aspect-[4/5] overflow-hidden">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={product.name}
+                              loading="lazy"
+                              className="size-full object-cover transition-transform duration-700 group-hover:scale-[1.035]"
+                            />
+                          ) : (
+                            <div className="flex size-full items-center justify-center bg-[#fdf0ef]">
+                              <ShoppingBag className="size-5 text-[#102650]/15" />
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+
+                      {/* Middle Column: Item Details + Quantity Selector */}
+                      <div className="flex min-w-0 flex-col justify-between self-stretch py-0.5">
+                        <div>
+                          <p className="mb-1 text-[9px] font-medium uppercase tracking-[0.2em] text-[#c89a4b]">
+                            {product.category?.name ||
+                              "Jewellery"}
+                          </p>
+
+                          <Link
+                            to={`/product/${product.id}`}
+                            className="font-display text-base leading-tight text-[#102650] transition-colors hover:text-[#c89a4b] sm:text-2xl"
+                          >
+                            {product.name}
+                          </Link>
+
+                          <p className="mt-1 text-[11px] text-[#102650]/60 sm:text-xs">
+                            {formatINR(price)} each
+                          </p>
+                        </div>
+
+                        <div className="mt-4 flex items-center sm:mt-6">
+                          <div className="flex h-8 sm:h-9 items-center border border-[#102650]/20 bg-white">
+                            <button
+                              type="button"
+                              disabled={qty <= 1}
+                              onClick={() =>
+                                setQty(
+                                  idToUse,
+                                  Math.max(1, qty - 1),
+                                )
+                              }
+                              aria-label="Decrease quantity"
+                              className="grid size-7 sm:size-8 place-items-center text-[#102650]/60 transition-colors hover:text-[#102650] disabled:opacity-25"
+                            >
+                              <Minus className="size-3" />
+                            </button>
+
+                            <span className="w-6 sm:w-7 text-center text-xs font-medium text-[#102650]">
+                              {qty}
+                            </span>
+
+                            <button
+                              type="button"
+                              disabled={qty >= maxQuantity}
+                              onClick={() =>
+                                setQty(
+                                  idToUse,
+                                  Math.min(
+                                    maxQuantity,
+                                    qty + 1,
+                                  ),
+                                )
+                              }
+                              aria-label="Increase quantity"
+                              className="grid size-7 sm:size-8 place-items-center text-[#102650]/60 transition-colors hover:text-[#102650] disabled:opacity-25"
+                            >
+                              <Plus className="size-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Column: Price at top, Remove button below it, perfectly right-aligned across all screens */}
+                      <div className="flex flex-col items-end py-0.5 text-right self-stretch justify-between">
+                        <span className="font-display text-lg sm:text-xl text-[#102650]">
+                          {formatINR(price * qty)}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeFromCart(idToUse)
+                          }
+                          aria-label={`Remove ${product.name} from bag`}
+                          className="inline-flex items-center gap-1 text-[9px] uppercase tracking-[0.16em] text-[#102650]/50 transition-colors hover:text-[#102650]"
+                        >
+                          <Trash2 className="size-3 sm:size-3.5" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
                     </div>
-                    <button onClick={() => removeFromCart(idToUse)} aria-label="Remove" className="text-muted-foreground transition-colors hover:text-destructive">
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center rounded-sm border border-border">
-                      <button className="grid size-9 place-items-center" onClick={() => setQty(idToUse, qty - 1)} aria-label="Decrease">
-                        <Minus className="size-3.5" />
-                      </button>
-                      <span className="w-9 text-center text-sm">{qty}</span>
-                      <button className="grid size-9 place-items-center" onClick={() => setQty(idToUse, qty + 1)} aria-label="Increase">
-                        <Plus className="size-3.5" />
-                      </button>
-                    </div>
-                    <span className="font-medium">{formatINR(price * qty)}</span>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                  </li>
+                );
+              })}
+            </ul>
 
-        <aside className="h-fit lg:sticky lg:top-44">
-          <div className="rounded-sm border border-border p-6 shadow-card">
-            <h2 className="eyebrow text-navy">Order Summary</h2>
-
-            <form onSubmit={handleApplyCoupon} className="mt-4 flex gap-2">
-              <Input
-                placeholder="Promo Code"
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value)}
-                className="text-xs h-9 uppercase"
-              />
-              <Button type="submit" disabled={applyCouponMutation.isPending} className="bg-navy text-navy-foreground text-xs h-9">
-                Apply
-              </Button>
-            </form>
-
-            <dl className="mt-5 space-y-3 text-sm">
-              <Row label="Subtotal" value={formatINR(subtotal)} />
-              {couponApplied && (
-                <Row label="Discount" value={`-${formatINR(appliedDiscount)}`} />
-              )}
-              <Row label="Taxes & shipping" value="Calculated at checkout" />
-              <div className="border-t border-border pt-3">
-                <Row label="Cart total" value={formatINR(estimatedTotal)} strong />
-              </div>
-            </dl>
             <Link
-              to="/checkout"
-              className="mt-6 block rounded-sm bg-navy py-4 text-center text-[11px] tracking-[0.22em] text-navy-foreground uppercase transition-opacity hover:opacity-90"
+              to="/products"
+              className="group mt-7 flex items-center gap-2 text-[9px] font-medium uppercase tracking-[0.2em] text-[#102650]/60 transition-colors hover:text-[#102650] sm:hidden"
             >
-              Proceed to checkout
+              <ArrowRight className="size-3 rotate-180 text-[#c89a4b]" />
+              Continue shopping
             </Link>
           </div>
-        </aside>
-      </div>
-    </div>
+
+          {/* Order summary (Non-sticky) */}
+          <aside className="h-fit">
+            <div className="border border-[#102650]/15 bg-[#fffdfb] shadow-sm">
+              <div className="border-b border-[#102650]/10 px-6 py-5 sm:px-7">
+                <p className="text-[9px] font-medium uppercase tracking-[0.28em] text-[#c89a4b]">
+                  Grandeur
+                </p>
+
+                <h2 className="mt-2 font-display text-2xl text-[#102650]">
+                  Order Summary
+                </h2>
+              </div>
+
+              <div className="px-6 py-6 sm:px-7">
+                <dl className="space-y-4">
+                  <SummaryRow
+                    label="Subtotal"
+                    value={formatINR(subtotal)}
+                  />
+
+                  <SummaryRow
+                    label="Taxes & shipping"
+                    value="Calculated at checkout"
+                    muted
+                  />
+                </dl>
+
+                <div className="mt-6 border-t border-[#102650]/10 pt-5">
+                  <div className="flex items-end justify-between gap-4">
+                    <span className="font-display text-xl text-[#102650]">
+                      Total
+                    </span>
+
+                    <span className="font-display text-2xl text-[#102650]">
+                      {formatINR(subtotal)}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-right text-[10px] leading-4 text-[#102650]/60">
+                    Final taxes, shipping and discounts
+                    are calculated at checkout.
+                  </p>
+                </div>
+
+                <Link
+                  to="/checkout"
+                  className="group mt-7 flex h-14 items-center justify-center gap-3 bg-[#102650] text-[10px] font-medium uppercase tracking-[0.23em] text-white transition-colors hover:bg-[#18325f]"
+                >
+                  Proceed to checkout
+                  <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <WishlistSection
+        products={wishlistProducts}
+        loading={wishlistLoading}
+        authenticated={isAuthenticated}
+      />
+    </main>
   );
 }
 
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function WishlistSection({
+  products,
+  loading,
+  authenticated,
+}: {
+  products: Array<any>;
+  loading: boolean;
+  authenticated: boolean;
+}) {
+  if (
+    !authenticated ||
+    loading ||
+    products.length === 0
+  ) {
+    return null;
+  }
+
   return (
-    <div className="flex justify-between">
-      <dt className={strong ? "font-display text-lg" : "text-muted-foreground"}>{label}</dt>
-      <dd className={strong ? "font-display text-lg" : ""}>{value}</dd>
+    <section className="border-t border-[#102650]/10 bg-[#fdf7f4]">
+      <div className="mx-auto max-w-[1320px] px-5 py-14 sm:px-8 sm:py-18 lg:px-12">
+        <div className="flex items-end justify-between gap-6">
+          <div>
+            <p className="text-[9px] font-medium uppercase tracking-[0.3em] text-[#c89a4b]">
+              Saved for later
+            </p>
+
+            <h2 className="mt-3 font-display text-3xl text-[#102650] sm:text-4xl">
+              From your wishlist
+            </h2>
+
+            <div className="mt-4 h-px w-10 bg-[#c89a4b]/60" />
+            <p className="mt-4 text-[9px] tracking-[0.08em] text-[#102650]/60">
+              {products.length} {products.length === 1 ? "piece" : "pieces"} saved
+            </p>
+          </div>
+
+          <Link
+            to="/wishlist"
+            className="group hidden items-center gap-2 text-[9px] font-medium uppercase tracking-[0.2em] text-[#102650]/60 transition-colors hover:text-[#102650] sm:flex"
+          >
+            View wishlist
+            <ArrowRight className="size-3 text-[#c89a4b] transition-transform group-hover:translate-x-1" />
+          </Link>
+        </div>
+
+        <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-4 sm:gap-x-6">
+          {products.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  muted,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-5">
+      <dt
+        className={
+          muted
+            ? "text-xs text-[#102650]/70 font-medium"
+            : "text-xs text-[#102650]/80 font-medium"
+        }
+      >
+        {label}
+      </dt>
+
+      <dd
+        className={
+          muted
+            ? "text-right text-[11px] text-[#102650]/70 font-medium"
+            : "text-xs font-semibold text-[#102650]"
+        }
+      >
+        {value}
+      </dd>
     </div>
   );
 }

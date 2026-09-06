@@ -22,3 +22,12 @@ export interface PaginationMeta {
   total: number;
   totalPages: number;
 }
+
+export type FeaturedProductBadge =
+    | "Bestseller"
+    | "New";
+
+export interface FeaturedProduct {
+    product: ProductResponse;
+    badge: FeaturedProductBadge;
+}

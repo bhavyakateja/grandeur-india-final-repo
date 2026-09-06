@@ -45,6 +45,16 @@ const server = serve({
         });
       },
     },
+    "/videos/hero-phone.mp4": {
+      GET() {
+        return new Response(Bun.file("./public/videos/hero-phone.mp4"), {
+          headers: {
+            "Content-Type": "video/mp4",
+            "Cache-Control": "public, max-age=3600",
+          },
+        });
+      },
+    },
     "/api/*": proxyApi,
     "/*": index,
   },
