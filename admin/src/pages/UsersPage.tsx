@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Eye, Pencil, Search, UserX, X } from "lucide-react";
 import { adminApi, type AdminUser, type Role } from "@/lib/admin-api";
+import { useDebounce } from "@/lib/use-debounce";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,39 +116,49 @@ function UserEdit({
 
 function UserDetail({
   id,
+  initialUser,
   canManageRole,
   onBack,
   onChanged,
 }: {
   id: string;
+  initialUser?: AdminUser;
   canManageRole: boolean;
   onBack: () => void;
-  onChanged: () => void;
+  onChanged: (u: AdminUser) => void;
 }) {
-  const [u, setU] = useState<AdminUser | null>(null);
+  const [u, setU] = useState<AdminUser | null>(initialUser ?? null);
   const [e, setE] = useState("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     try {
       setE("");
-      setU(await adminApi.user(id));
+      setU(await adminApi.user(id, signal));
     } catch (x) {
+      if (signal?.aborted) return;
       setE(x instanceof Error ? x.message : "Unable to load user.");
     }
   };
 
   useEffect(() => {
-    void load();
+    const ac = new AbortController();
+    if (!initialUser || !initialUser._count) {
+      void load(ac.signal);
+    }
+    return () => {
+      ac.abort();
+    };
   }, [id]);
 
   const deactivate = async () => {
     if (!u || !window.confirm(`Deactivate ${u.name}'s account?`)) return;
     try {
       setBusy(true);
-      setU(await adminApi.deleteUser(u.id));
-      onChanged();
+      const deactivated = await adminApi.deleteUser(u.id);
+      setU(deactivated);
+      onChanged(deactivated);
     } catch (x) {
       setE(x instanceof Error ? x.message : "Unable to deactivate user.");
     } finally {
@@ -242,7 +253,7 @@ function UserDetail({
           onSaved={(next) => {
             setU(next);
             setEditing(false);
-            onChanged();
+            onChanged(next);
           }}
         />
       )}
@@ -263,40 +274,55 @@ export default function UsersPage() {
   const [selected, setSelected] = useState<string | null>(null);
 
   const limit = 20;
+  const debouncedSearch = useDebounce(search, 300);
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       setError("");
       const r = await adminApi.users({
         page,
         limit,
-        search: search.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
         role: (role || undefined) as Role | undefined,
         isActive: active === "" ? undefined : active === "true",
-      });
+      }, signal);
       setData(r.data);
       setTotal(r.pagination.total);
     } catch (e) {
+      if (signal?.aborted) return;
       setError(e instanceof Error ? e.message : "Unable to load users.");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    void load();
-  }, [page, search, role, active]);
+    const ac = new AbortController();
+    void load(ac.signal);
+    return () => {
+      ac.abort();
+    };
+  }, [page, debouncedSearch, role, active]);
 
-  if (selected)
+  if (selected) {
+    const activeUser = data.find((user) => user.id === selected);
     return (
       <UserDetail
         id={selected}
+        initialUser={activeUser}
         canManageRole={actor?.role === "ADMIN"}
         onBack={() => setSelected(null)}
-        onChanged={() => void load()}
+        onChanged={(updated) => {
+          setData((prev) =>
+            prev.map((item) => (item.id === updated.id ? updated : item)),
+          );
+        }}
       />
     );
+  }
 
   return (
     <div>

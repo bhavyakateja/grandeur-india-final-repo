@@ -1,15 +1,15 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/context/auth-context";
 import { useCart, useAddToCart, useUpdateCartItem, useRemoveCartItem, useWishlist, useToggleWishlist, useAddresses, useCreateAddress, useDeleteAddress, useOrders } from "@/hooks/use-api";
 import type { Product, Address as ApiAddress, Order as ApiOrder } from "@/lib/types";
 
-export type CartLine = { id: string; qty: number; itemId?: string; product?: Product };
-export type Address = { id: string; label?: string; name: string; phone: string; line1: string; city: string; state: string; pincode: string; isDefault: boolean };
-export type Order = { id: string; orderId: string; orderNumber: string; paymentStatus: string; date: string; status: string; total: number; items: { id: string; name: string; qty: number; image?: string; price?: number }[] };
+export type CartLine = { id: string; qty: number; itemId?: string; product: Product };
+export type Address = { id: string; label?: string; name: string; phone: string; line1: string; city: string; state: string; country: string; pincode: string; isDefault: boolean };
+export type Order = { id: string; orderId: string; orderNumber: string; paymentStatus: string; date: string; status: string; total: number; courier?: string | null; waybill?: string | null; shippingStatus?: string | null; trackingUrl?: string | null; isInternational?: boolean; items: { id: string; name: string; qty: number; image?: string; price?: number }[] };
 
 type StoreContextType = {
   cart: CartLine[]; wishlist: string[]; addresses: Address[]; orders: Order[];
-  addToCart: (productId: string, qty?: number) => void;
+  addToCart: (productId: string, qty?: number, product?: Product) => void;
   setQty: (productIdOrItemId: string, qty: number) => void;
   removeFromCart: (productIdOrItemId: string) => void;
   clearCart: () => void;
@@ -24,6 +24,14 @@ const StoreContext = createContext<StoreContextType | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
+  const [guestCart, setGuestCart] = useState<CartLine[]>(() => {
+    try {
+      const stored = localStorage.getItem("grandeur-guest-cart");
+      return stored ? JSON.parse(stored) as CartLine[] : [];
+    } catch {
+      return [];
+    }
+  });
   const { data: cart, isLoading: cartLoading } = useCart();
   const { data: wishlistData, isLoading: wishlistLoading } = useWishlist();
   const { data: addressData, isLoading: addressLoading } = useAddresses();
@@ -35,30 +43,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const createAddressMutation = useCreateAddress();
   const deleteAddressMutation = useDeleteAddress();
 
-const lines = useMemo(
-  () =>
-    isAuthenticated && Array.isArray(cart?.items)
-      ? cart.items.map((item) => ({
-          product: item.product,
-          qty: item.quantity,
-          itemId: item.id,
-        }))
-      : [],
-  [isAuthenticated, cart]
-);
+  useEffect(() => {
+    if (!isAuthenticated) {
+      localStorage.setItem("grandeur-guest-cart", JSON.stringify(guestCart));
+    }
+  }, [guestCart, isAuthenticated]);
 
-const wishlist = useMemo(
-  () =>
-    isAuthenticated && Array.isArray(wishlistData)
-      ? wishlistData.map((item) => item.productId)
-      : [],
-  [isAuthenticated, wishlistData]
-);
+  const lines = useMemo(
+    () =>
+      isAuthenticated
+        ? Array.isArray(cart?.items)
+          ? cart.items.map((item) => ({
+            product: item.product,
+            qty: item.quantity,
+            itemId: item.id,
+          }))
+          : []
+        : guestCart,
+    [isAuthenticated, cart, guestCart]
+  );
 
-const addresses = useMemo<Address[]>(
-  () =>
-    isAuthenticated && Array.isArray(addressData)
-      ? addressData.map((a: ApiAddress) => ({
+  const wishlist = useMemo(
+    () =>
+      isAuthenticated && Array.isArray(wishlistData)
+        ? wishlistData.map((item) => item.productId)
+        : [],
+    [isAuthenticated, wishlistData]
+  );
+
+  const addresses = useMemo<Address[]>(
+    () =>
+      isAuthenticated && Array.isArray(addressData)
+        ? addressData.map((a: ApiAddress) => ({
           id: a.id,
           label: a.isDefault ? "Default Address" : "Saved Address",
           name: a.fullName,
@@ -68,17 +84,18 @@ const addresses = useMemo<Address[]>(
             .join(", "),
           city: a.city,
           state: a.state,
+          country: a.country,
           pincode: a.postalCode,
           isDefault: a.isDefault,
         }))
-      : [],
-  [isAuthenticated, addressData]
-);
+        : [],
+    [isAuthenticated, addressData]
+  );
 
-const orders = useMemo<Order[]>(
-  () =>
-    isAuthenticated && Array.isArray(orderData)
-      ? orderData.map((o: ApiOrder) => ({
+  const orders = useMemo<Order[]>(
+    () =>
+      isAuthenticated && Array.isArray(orderData)
+        ? orderData.map((o: ApiOrder) => ({
           id: o.orderNumber || o.id,
           orderId: o.id,
           orderNumber: o.orderNumber || o.id,
@@ -90,31 +107,75 @@ const orders = useMemo<Order[]>(
           }),
           status: o.status,
           total: Number(o.total),
+          courier: o.courier,
+          waybill: o.waybill,
+          shippingStatus: o.shippingStatus,
+          trackingUrl: o.trackingUrl,
+          isInternational: o.isInternational,
           items: Array.isArray(o.items)
             ? o.items.map((i) => ({
-                id: i.productId,
-                name: i.productName,
-                qty: i.quantity,
-                price: Number(i.price),
-                image: i.product?.images?.[0]?.url,
-              }))
+              id: i.productId,
+              name: i.productName,
+              qty: i.quantity,
+              price: Number(i.price),
+              image: i.product?.images?.[0]?.url,
+            }))
             : [],
         }))
-      : [],
-  [isAuthenticated, orderData]
-);
+        : [],
+    [isAuthenticated, orderData]
+  );
   const subtotal = useMemo(() => lines.reduce((sum, line) => sum + Number(line.product.price) * line.qty, 0), [lines]);
   const cartCount = useMemo(() => lines.reduce((sum, line) => sum + line.qty, 0), [lines]);
 
   const value = useMemo<StoreContextType>(() => ({
     cart: lines.map((line) => ({ id: line.product.id, qty: line.qty, itemId: line.itemId, product: line.product })), wishlist, addresses, orders, lines, subtotal, cartCount,
     isApiLoading: isAuthenticated && (cartLoading || wishlistLoading || addressLoading || orderLoading),
-    addToCart: (productId, qty = 1) => { if (isAuthenticated) addMutation.mutate({ productId, quantity: Math.min(10, Math.max(1, qty)) }); },
-    setQty: (id, qty) => { if (!isAuthenticated) return; const line = lines.find((item) => item.itemId === id || item.product.id === id); if (!line?.itemId) return; if (qty <= 0) removeMutation.mutate(line.itemId); else updateMutation.mutate({ itemId: line.itemId, quantity: Math.min(10, qty) }); },
-    removeFromCart: (id) => { if (!isAuthenticated) return; const line = lines.find((item) => item.itemId === id || item.product.id === id); if (line?.itemId) removeMutation.mutate(line.itemId); },
-    clearCart: () => { if (isAuthenticated) lines.forEach((line) => { if (line.itemId) removeMutation.mutate(line.itemId); }); },
+    addToCart: (productId, qty = 1, product) => {
+      const quantity = Math.min(10, Math.max(1, qty));
+      if (isAuthenticated) {
+        addMutation.mutate({ productId, quantity });
+        return;
+      }
+      if (!product) return;
+      setGuestCart((current) => {
+        const existing = current.find((line) => line.product.id === productId);
+        return existing
+          ? current.map((line) => line.product.id === productId
+            ? { ...line, qty: Math.min(10, line.qty + quantity) }
+            : line)
+          : [...current, { id: productId, product, qty: quantity }];
+      });
+    },
+    setQty: (id, qty) => {
+      if (!isAuthenticated) {
+        setGuestCart((current) => current
+          .map((line) => line.product.id === id ? { ...line, qty: Math.min(10, qty) } : line)
+          .filter((line) => line.qty > 0));
+        return;
+      }
+      const line = lines.find((item) => item.itemId === id || item.product.id === id);
+      if (!line?.itemId) return;
+      if (qty <= 0) removeMutation.mutate(line.itemId);
+      else updateMutation.mutate({ itemId: line.itemId, quantity: Math.min(10, qty) });
+    },
+    removeFromCart: (id) => {
+      if (!isAuthenticated) {
+        setGuestCart((current) => current.filter((line) => line.product.id !== id));
+        return;
+      }
+      const line = lines.find((item) => item.itemId === id || item.product.id === id);
+      if (line?.itemId) removeMutation.mutate(line.itemId);
+    },
+    clearCart: () => {
+      if (!isAuthenticated) {
+        setGuestCart([]);
+        return;
+      }
+      lines.forEach((line) => { if (line.itemId) removeMutation.mutate(line.itemId); });
+    },
     toggleWishlist: (productId) => { if (isAuthenticated) wishlistMutation.mutate(productId); },
-    saveAddress: (a) => { if (isAuthenticated) createAddressMutation.mutate({ fullName: a.name, phone: a.phone, addressLine1: a.line1, city: a.city, state: a.state, country: "India", postalCode: a.pincode, isDefault: a.isDefault }); },
+    saveAddress: (a) => { if (isAuthenticated) createAddressMutation.mutate({ fullName: a.name, phone: a.phone, addressLine1: a.line1, city: a.city, state: a.state, country: a.country, postalCode: a.pincode, isDefault: a.isDefault }); },
     removeAddress: (id) => { if (isAuthenticated) deleteAddressMutation.mutate(id); },
   }), [lines, wishlist, addresses, orders, subtotal, cartCount, isAuthenticated, cartLoading, wishlistLoading, addressLoading, orderLoading, addMutation, updateMutation, removeMutation, wishlistMutation, createAddressMutation, deleteAddressMutation]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

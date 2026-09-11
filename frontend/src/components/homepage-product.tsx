@@ -22,6 +22,7 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "@/context/auth-context";
 import { toast } from "sonner";
 import type { Product } from "@/lib/types";
+import { AuthDialog } from "@/components/auth-dialog";
 
 export type FeaturedProduct = {
   product: Product;
@@ -125,8 +126,8 @@ export function HomeProductCarousel({
   const progress =
     total > 0
       ? ((selectedIndex + 1) /
-          total) *
-        100
+        total) *
+      100
       : 0;
 
   return (
@@ -167,8 +168,8 @@ export function HomeProductCarousel({
         {/* =====================================================
             EMBLA CAROUSEL
         ===================================================== */}
-        <div 
-          ref={emblaRef} 
+        <div
+          ref={emblaRef}
           className="overflow-hidden" // Change from overflow-visible to overflow-hidden
         >
           <div className="-ml-3 flex touch-pan-y">
@@ -276,6 +277,7 @@ function HomeProductCard({
 
   const { isAuthenticated } =
     useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
 
   const wished =
     wishlist.includes(product.id);
@@ -293,7 +295,7 @@ function HomeProductCard({
 
   const isOutOfStock =
     product.status ===
-      "OUT_OF_STOCK" ||
+    "OUT_OF_STOCK" ||
     (product.stock ?? 0) <= 0;
 
   /* =========================================================
@@ -302,10 +304,7 @@ function HomeProductCard({
 
   const handleWishlist = () => {
     if (!isAuthenticated) {
-      toast.error(
-        "Please sign in to use your wishlist",
-      );
-
+      setAuthOpen(true);
       return;
     }
 
@@ -327,15 +326,7 @@ function HomeProductCard({
       return;
     }
 
-    if (!isAuthenticated) {
-      toast.error(
-        "Please sign in to add items to your bag",
-      );
-
-      return;
-    }
-
-    addToCart(product.id);
+    addToCart(product.id, 1, product);
 
     toast.success(
       `${product.name} added to bag`,
@@ -343,315 +334,318 @@ function HomeProductCard({
   };
 
   return (
-    <article className="group relative min-w-0">
-      {/* =====================================================
+    <>
+      <article className="group relative min-w-0">
+        {/* =====================================================
           PRODUCT IMAGE CONTAINER (Matched with Category Card)
       ===================================================== */}
 
-      <div className="relative aspect-[4/5] overflow-hidden bg-[#faf3f1]">
-        <Link
-          to={`/product/${product.id}`}
-          className="block h-full w-full"
-          aria-label={`View ${product.name}`}
-        >
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={`${product.name} - ${categoryName} | Grandeur`}
-              loading="lazy"
-              decoding="async"
-              width={800}
-              height={1000}
-              className={cn(
-                "absolute inset-0 h-full w-full object-cover",
-                "transition-transform",
-                "duration-[1400ms]",
-                "ease-[cubic-bezier(0.22,1,0.36,1)]",
-                "group-hover:scale-[1.045]",
-                "motion-reduce:transition-none",
-                "motion-reduce:group-hover:scale-100",
-              )}
-            />
-          ) : (
-            <div
-              className="absolute inset-0 h-full w-full bg-[#fdf0ef]"
-              aria-label="Product image unavailable"
-            />
-          )}
+        <div className="relative aspect-[4/5] overflow-hidden bg-[#faf3f1]">
+          <Link
+            to={`/product/${product.id}`}
+            className="block h-full w-full"
+            aria-label={`View ${product.name}`}
+          >
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={`${product.name} - ${categoryName} | Grandeur`}
+                loading="lazy"
+                decoding="async"
+                width={800}
+                height={1000}
+                className={cn(
+                  "absolute inset-0 h-full w-full object-cover",
+                  "transition-transform",
+                  "duration-[1400ms]",
+                  "ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  "group-hover:scale-[1.045]",
+                  "motion-reduce:transition-none",
+                  "motion-reduce:group-hover:scale-100",
+                )}
+              />
+            ) : (
+              <div
+                className="absolute inset-0 h-full w-full bg-[#fdf0ef]"
+                aria-label="Product image unavailable"
+              />
+            )}
 
-          {/* =================================================
+            {/* =================================================
               BOTTOM GRADIENT (Matched with Category Card Style)
           ================================================= */}
 
-          <div
-            className={cn(
-              "absolute inset-x-0 bottom-0 h-1/2",
-              "bg-gradient-to-t",
-              "from-[#102650]/65",
-              "via-[#102650]/10",
-              "to-transparent",
-              "opacity-90",
-              "transition-opacity duration-700",
-              "group-hover:opacity-100",
-            )}
-          />
-        </Link>
+            <div
+              className={cn(
+                "absolute inset-x-0 bottom-0 h-1/2",
+                "bg-gradient-to-t",
+                "from-[#102650]/65",
+                "via-[#102650]/10",
+                "to-transparent",
+                "opacity-90",
+                "transition-opacity duration-700",
+                "group-hover:opacity-100",
+              )}
+            />
+          </Link>
 
-        {/* =====================================================
+          {/* =====================================================
             FEATURED BADGE
         ===================================================== */}
 
-        <div className="absolute left-5 top-5 z-10">
-          <span
-            className={cn(
-              "bg-[#fffdfb]/90",
-              "px-2.5 py-1",
-              "text-[7px] font-medium",
-              "uppercase tracking-[0.15em]",
-              "text-[#102650]",
-              "backdrop-blur-md",
-            )}
-          >
-            {badge}
-          </span>
-        </div>
+          <div className="absolute left-5 top-5 z-10">
+            <span
+              className={cn(
+                "bg-[#fffdfb]/90",
+                "px-2.5 py-1",
+                "text-[7px] font-medium",
+                "uppercase tracking-[0.15em]",
+                "text-[#102650]",
+                "backdrop-blur-md",
+              )}
+            >
+              {badge}
+            </span>
+          </div>
 
-        {/* =====================================================
+          {/* =====================================================
             WISHLIST
         ===================================================== */}
 
-        <button
-          type="button"
-          aria-label={
-            wished
-              ? `Remove ${product.name} from wishlist`
-              : `Add ${product.name} to wishlist`
-          }
-          aria-pressed={wished}
-          onClick={handleWishlist}
-          className={cn(
-            "absolute right-5 top-5 z-10",
-            "grid size-9 place-items-center",
-            "bg-[#fffdfb]/90",
-            "backdrop-blur-md",
-            "shadow-[0_2px_12px_rgba(20,36,61,0.04)]",
-            "transition-all duration-300",
-            "hover:bg-[#fffdfb]",
-            "hover:shadow-[0_4px_16px_rgba(20,36,61,0.08)]",
-            "active:scale-95",
-            "focus-visible:outline-none",
-            "focus-visible:ring-1",
-            "focus-visible:ring-[#c89a4b]",
-          )}
-        >
-          <Heart
-            className={cn(
-              "size-[15px]",
-              "transition-all duration-300",
+          <button
+            type="button"
+            aria-label={
               wished
-                ? "fill-[#c89a4b] text-[#c89a4b]"
-                : "text-[#c89a4b]/75",
+                ? `Remove ${product.name} from wishlist`
+                : `Add ${product.name} to wishlist`
+            }
+            aria-pressed={wished}
+            onClick={handleWishlist}
+            className={cn(
+              "absolute right-5 top-5 z-10",
+              "grid size-9 place-items-center",
+              "bg-[#fffdfb]/90",
+              "backdrop-blur-md",
+              "shadow-[0_2px_12px_rgba(20,36,61,0.04)]",
+              "transition-all duration-300",
+              "hover:bg-[#fffdfb]",
+              "hover:shadow-[0_4px_16px_rgba(20,36,61,0.08)]",
+              "active:scale-95",
+              "focus-visible:outline-none",
+              "focus-visible:ring-1",
+              "focus-visible:ring-[#c89a4b]",
             )}
-            strokeWidth={1.25}
-          />
-        </button>
+          >
+            <Heart
+              className={cn(
+                "size-[15px]",
+                "transition-all duration-300",
+                wished
+                  ? "fill-[#c89a4b] text-[#c89a4b]"
+                  : "text-[#c89a4b]/75",
+              )}
+              strokeWidth={1.25}
+            />
+          </button>
 
-        {/* =====================================================
+          {/* =====================================================
             OUT OF STOCK OVERLAY
         ===================================================== */}
 
-        {isOutOfStock && (
-          <div
-            className={cn(
-              "absolute inset-x-0 bottom-0 z-10",
-              "border-t border-white/60",
-              "bg-[#fffdfb]/90",
-              "px-3 py-2.5",
-              "text-center",
-              "backdrop-blur-md",
-            )}
-          >
-            <span
+          {isOutOfStock && (
+            <div
               className={cn(
-                "text-[8px] font-medium",
-                "uppercase tracking-[0.22em]",
-                "text-[#102650]/55",
+                "absolute inset-x-0 bottom-0 z-10",
+                "border-t border-white/60",
+                "bg-[#fffdfb]/90",
+                "px-3 py-2.5",
+                "text-center",
+                "backdrop-blur-md",
               )}
             >
-              Out of stock
-            </span>
-          </div>
-        )}
+              <span
+                className={cn(
+                  "text-[8px] font-medium",
+                  "uppercase tracking-[0.22em]",
+                  "text-[#102650]/55",
+                )}
+              >
+                Out of stock
+              </span>
+            </div>
+          )}
 
-        {/* =====================================================
+          {/* =====================================================
             DESKTOP PREMIUM ADD TO BAG (Hover overlay slide-up)
         ===================================================== */}
 
-        {!isOutOfStock && (
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            aria-label={`Add ${product.name} to bag`}
-            className={cn(
-              "absolute inset-x-4 bottom-4 z-10",
-              "hidden md:flex",
-              "h-11 items-center",
-              "justify-between",
-              "border border-white/30",
-              "bg-[#fffdfb]/92",
-              "px-4",
-              "text-[#102650]",
-              "backdrop-blur-md",
-              "shadow-[0_4px_20px_rgba(20,36,61,0.08)]",
-              "translate-y-3 opacity-0",
-              "transition-all duration-500",
-              "ease-[cubic-bezier(0.22,1,0.36,1)]",
-              "group-hover:translate-y-0",
-              "group-hover:opacity-100",
-              "hover:bg-[#fffdfb]",
-              "hover:shadow-[0_6px_24px_rgba(20,36,61,0.11)]",
-              "active:scale-[0.99]",
-              "focus-visible:translate-y-0",
-              "focus-visible:opacity-100",
-              "focus-visible:outline-none",
-              "focus-visible:ring-1",
-              "focus-visible:ring-[#c89a4b]",
-              "motion-reduce:translate-y-0",
-              "motion-reduce:transition-none",
-              "motion-reduce:opacity-100",
-            )}
-          >
-            <span className="flex items-center gap-2.5">
-              <ShoppingBag
-                className="size-3.5 text-[#c89a4b]"
-                strokeWidth={1.25}
-              />
-
-              <span
-                className={cn(
-                  "text-[9px] font-medium",
-                  "uppercase tracking-[0.22em]",
-                )}
-              >
-                Add to bag
-              </span>
-            </span>
-
-            <ArrowRight
+          {!isOutOfStock && (
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              aria-label={`Add ${product.name} to bag`}
               className={cn(
-                "size-3.5",
-                "text-[#102650]/60",
-                "transition-transform duration-300",
-                "group-hover:translate-x-1",
+                "absolute inset-x-4 bottom-4 z-10",
+                "hidden md:flex",
+                "h-11 items-center",
+                "justify-between",
+                "border border-white/30",
+                "bg-[#fffdfb]/92",
+                "px-4",
+                "text-[#102650]",
+                "backdrop-blur-md",
+                "shadow-[0_4px_20px_rgba(20,36,61,0.08)]",
+                "translate-y-3 opacity-0",
+                "transition-all duration-500",
+                "ease-[cubic-bezier(0.22,1,0.36,1)]",
+                "group-hover:translate-y-0",
+                "group-hover:opacity-100",
+                "hover:bg-[#fffdfb]",
+                "hover:shadow-[0_6px_24px_rgba(20,36,61,0.11)]",
+                "active:scale-[0.99]",
+                "focus-visible:translate-y-0",
+                "focus-visible:opacity-100",
+                "focus-visible:outline-none",
+                "focus-visible:ring-1",
+                "focus-visible:ring-[#c89a4b]",
+                "motion-reduce:translate-y-0",
+                "motion-reduce:transition-none",
+                "motion-reduce:opacity-100",
               )}
-              strokeWidth={1.2}
-            />
-          </button>
-        )}
-      </div>
+            >
+              <span className="flex items-center gap-2.5">
+                <ShoppingBag
+                  className="size-3.5 text-[#c89a4b]"
+                  strokeWidth={1.25}
+                />
 
-      {/* =====================================================
+                <span
+                  className={cn(
+                    "text-[9px] font-medium",
+                    "uppercase tracking-[0.22em]",
+                  )}
+                >
+                  Add to bag
+                </span>
+              </span>
+
+              <ArrowRight
+                className={cn(
+                  "size-3.5",
+                  "text-[#102650]/60",
+                  "transition-transform duration-300",
+                  "group-hover:translate-x-1",
+                )}
+                strokeWidth={1.2}
+              />
+            </button>
+          )}
+        </div >
+
+        {/* =====================================================
           PRODUCT INFORMATION
       ===================================================== */}
 
-      <div className="pt-4">
-        <Link
-          to={`/product/${product.id}`}
-          className="block"
-        >
-          <h3
+        <div className="pt-4">
+          <Link
+            to={`/product/${product.id}`}
+            className="block"
+          >
+            <h3
+              className={cn(
+                "font-display",
+                "text-[17px] leading-[1.25]",
+                "text-[#102650]",
+                "transition-colors duration-300",
+                "group-hover:text-[#b3863e]",
+                "sm:text-[18px]",
+              )}
+            >
+              {product.name}
+            </h3>
+          </Link>
+
+          <p
             className={cn(
-              "font-display",
-              "text-[17px] leading-[1.25]",
-              "text-[#102650]",
-              "transition-colors duration-300",
-              "group-hover:text-[#b3863e]",
-              "sm:text-[18px]",
+              "mt-1.5",
+              "text-[9px] font-medium",
+              "uppercase tracking-[0.18em]",
+              "text-[#102650]/40",
             )}
           >
-            {product.name}
-          </h3>
-        </Link>
+            {categoryName}
+          </p>
 
-        <p
-          className={cn(
-            "mt-1.5",
-            "text-[9px] font-medium",
-            "uppercase tracking-[0.18em]",
-            "text-[#102650]/40",
-          )}
-        >
-          {categoryName}
-        </p>
+          <p
+            className={cn(
+              "mt-2",
+              "text-[13px] font-medium",
+              "tracking-[0.01em]",
+              "text-[#102650]",
+            )}
+          >
+            {formatINR(price)}
+          </p>
 
-        <p
-          className={cn(
-            "mt-2",
-            "text-[13px] font-medium",
-            "tracking-[0.01em]",
-            "text-[#102650]",
-          )}
-        >
-          {formatINR(price)}
-        </p>
-
-        {/* =================================================
+          {/* =================================================
             MOBILE ADD TO BAG
         ================================================= */}
 
-        {!isOutOfStock && (
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            aria-label={`Add ${product.name} to bag`}
-            className={cn(
-              "mt-3 flex w-full",
-              "items-center justify-center gap-2",
-              "border border-[#102650]/15",
-              "bg-transparent",
-              "py-2.5",
-              "text-[9px] font-medium",
-              "uppercase tracking-[0.2em]",
-              "text-[#102650]",
-              "transition-all duration-300",
-              "hover:border-[#102650]",
-              "hover:bg-[#102650]",
-              "hover:text-white",
-              "active:scale-[0.99]",
-              "focus-visible:outline-none",
-              "focus-visible:ring-1",
-              "focus-visible:ring-[#c89a4b]",
-              "md:hidden",
-            )}
-          >
-            <ShoppingBag
-              className="size-3.5"
-              strokeWidth={1.25}
-            />
+          {!isOutOfStock && (
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              aria-label={`Add ${product.name} to bag`}
+              className={cn(
+                "mt-3 flex w-full",
+                "items-center justify-center gap-2",
+                "border border-[#102650]/15",
+                "bg-transparent",
+                "py-2.5",
+                "text-[9px] font-medium",
+                "uppercase tracking-[0.2em]",
+                "text-[#102650]",
+                "transition-all duration-300",
+                "hover:border-[#102650]",
+                "hover:bg-[#102650]",
+                "hover:text-white",
+                "active:scale-[0.99]",
+                "focus-visible:outline-none",
+                "focus-visible:ring-1",
+                "focus-visible:ring-[#c89a4b]",
+                "md:hidden",
+              )}
+            >
+              <ShoppingBag
+                className="size-3.5"
+                strokeWidth={1.25}
+              />
 
-            Add to bag
-          </button>
-        )}
+              Add to bag
+            </button>
+          )}
 
-        {/* =================================================
+          {/* =================================================
             MOBILE OUT OF STOCK
         ================================================= */}
 
-        {isOutOfStock && (
-          <p
-            className={cn(
-              "mt-3",
-              "text-[8px] font-medium",
-              "uppercase tracking-[0.2em]",
-              "text-[#102650]/45",
-              "md:hidden",
-            )}
-          >
-            Out of stock
-          </p>
-        )}
-      </div>
-    </article>
+          {isOutOfStock && (
+            <p
+              className={cn(
+                "mt-3",
+                "text-[8px] font-medium",
+                "uppercase tracking-[0.2em]",
+                "text-[#102650]/45",
+                "md:hidden",
+              )}
+            >
+              Out of stock
+            </p>
+          )}
+        </div>
+      </article>
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
+    </>
   );
 }
 

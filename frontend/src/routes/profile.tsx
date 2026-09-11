@@ -9,6 +9,7 @@ import {
   LogOut,
   FileDown,
   ArrowRight,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -349,6 +350,17 @@ function ProfilePage() {
                           Download Invoice
                         </button>
                       )}
+                      {o.waybill && o.trackingUrl && (
+                        <a
+                          href={o.trackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group flex items-center gap-2 text-[9px] font-medium uppercase tracking-[0.16em] text-[#102650] transition-colors hover:text-[#c89a4b]"
+                        >
+                          <ExternalLink className="size-3.5" strokeWidth={1.2} />
+                          Track {o.courier ?? "shipment"}
+                        </a>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -390,7 +402,7 @@ function ProfilePage() {
                         addressLine1: a.line1,
                         city: a.city,
                         state: a.state,
-                        country: "India",
+                        country: a.country,
                         postalCode: a.pincode,
                         isDefault: a.isDefault,
                       };
@@ -478,7 +490,7 @@ function ProfilePage() {
 
                           <p className="mt-2 text-sm leading-6 text-[#102650]/55">
                             {a.line1}, {a.city}, {a.state} —{" "}
-                            {a.pincode}
+                            {a.pincode}, {a.country}
                           </p>
 
                           <p className="mt-2 text-xs text-[#102650]/45">

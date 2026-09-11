@@ -19,7 +19,9 @@ export const createAddressSchema = z.object({
   phone: z
     .string()
     .trim()
-    .regex(/^[6-9]\d{9}$/, "Invalid phone number"),
+    .min(7, "Phone number too short")
+    .max(20, "Phone number too long")
+    .regex(/^(\+?[0-9\s\-()]{7,20}|[6-9]\d{9})$/, "Invalid phone number format"),
 
   addressLine1: z
     .string()
@@ -50,7 +52,9 @@ export const createAddressSchema = z.object({
   postalCode: z
     .string()
     .trim()
-    .regex(/^\d{6}$/, "Invalid postal code"),
+    .min(3, "Postal code too short")
+    .max(12, "Postal code too long")
+    .regex(/^([A-Za-z0-9\s\-]{3,12}|\d{6})$/, "Invalid postal code format"),
 
   isDefault: z
     .boolean()

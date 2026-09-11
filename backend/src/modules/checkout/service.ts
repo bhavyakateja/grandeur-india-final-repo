@@ -46,6 +46,14 @@ export async function checkout(
     );
   }
 
+  const isInternational = address.country.trim().toLowerCase() !== "india";
+
+  if (isInternational && !settings.internationalShippingEnabled) {
+    throw new BadRequestException(
+      "International shipping is currently not enabled. Orders can only be placed for delivery within India.",
+    );
+  }
+
   const items: CheckoutItem[] = [];
   let subtotal = new Prisma.Decimal(0);
 
@@ -102,22 +110,18 @@ export async function checkout(
   /*
    * Shipping
    *
-   * Current implementation uses Admin-configured
-   * shipping settings.
-   *
-   * This is intentionally isolated here so that
-   * Delhivery/API-based live shipping can replace
-   * this calculation later without changing the
-   * payment/order architecture.
+   * For India (domestic): Delhivery-backed standard rate or free over threshold.
+   * For International: Admin-configured international shipping charge.
    */
   const amountAfterDiscount = subtotal.minus(
     discount,
   );
 
-  const shipping =
-    amountAfterDiscount.gte(
-      settings.freeShippingThreshold,
-    )
+  const shipping = isInternational
+    ? new Prisma.Decimal(settings.defaultShippingCharge)
+    : amountAfterDiscount.gte(
+        settings.freeShippingThreshold,
+      )
       ? new Prisma.Decimal(0)
       : new Prisma.Decimal(
           settings.defaultShippingCharge,

@@ -50,7 +50,18 @@ export interface AdminOrder {
   total: number | string; subtotal?: number | string; shippingCharge?: number | string; shipping?: number | string;
   tax?: number | string; discount?: number | string; createdAt: string; updatedAt?: string; fullName: string; phone?: string;
   addressLine1?: string; addressLine2?: string; city?: string; state?: string; postalCode?: string; country?: string;
+  // Shipping / Delhivery fields
+  courier?: string | null; waybill?: string | null; shippingStatus?: string | null; trackingUrl?: string | null; isInternational?: boolean;
   user: { id: string; name: string; email: string }; items: AdminOrderItem[];
+}
+export interface ShippingInfo {
+  orderId: string; orderNumber: string; courier?: string | null; waybill?: string | null;
+  shippingStatus?: string | null; trackingUrl?: string | null;
+  tracking?: {
+    waybill: string; status: string; statusDateTime?: string; expectedDeliveryDate?: string;
+    origin?: string; destination?: string;
+    scans: Array<{ scanDateTime: string; scanType: string; scan: string; location: string; instructions?: string }>;
+  } | null;
 }
 export interface Paginated<T> { data: T[]; pagination: { page: number; limit: number; total: number; totalPages: number } }
 export interface DashboardData {
@@ -110,21 +121,31 @@ export const adminApi = {
   dashboard: () => apiRequest<DashboardData>("/admin/dashboard"),
   analytics: (from?: string, to?: string) => apiRequest<AnalyticsData>(`/admin/analytics?${query({ from, to })}`),
 
-  users: (params: { page?: number; limit?: number; search?: string; role?: Role; isActive?: boolean }) =>
-    apiRequest<Paginated<AdminUser>>(`/admin/users?${query(params)}`),
-  user: (id: string) => apiRequest<AdminUser>(`/admin/users/${id}`),
+  users: (params: { page?: number; limit?: number; search?: string; role?: Role; isActive?: boolean }, signal?: AbortSignal) =>
+    apiRequest<Paginated<AdminUser>>(`/admin/users?${query(params)}`, { signal }),
+  user: (id: string, signal?: AbortSignal) => apiRequest<AdminUser>(`/admin/users/${id}`, { signal }),
   updateUser: (id: string, input: Partial<Pick<AdminUser, "name" | "email" | "role" | "isActive" | "isVerified">>) =>
     apiRequest<AdminUser>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   deleteUser: (id: string) => apiRequest<AdminUser>(`/admin/users/${id}`, { method: "DELETE" }),
 
-  orders: (params: { page?: number; limit?: number; search?: string; status?: OrderStatus; from?: string; to?: string }) =>
-    apiRequest<Paginated<AdminOrder>>(`/admin/orders?${query(params)}`),
-  order: (id: string) => apiRequest<AdminOrder>(`/admin/orders/${id}`),
+  orders: (params: { page?: number; limit?: number; search?: string; status?: OrderStatus; from?: string; to?: string }, signal?: AbortSignal) =>
+    apiRequest<Paginated<AdminOrder>>(`/admin/orders?${query(params)}`, { signal }),
+  order: (id: string, signal?: AbortSignal) => apiRequest<AdminOrder>(`/admin/orders/${id}`, { signal }),
   updateOrderStatus: (id: string, status: OrderStatus) =>
     apiRequest<AdminOrder>(`/admin/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  createShipment: (orderId: string) =>
+    apiRequest<ShippingInfo>(`/admin/orders/${orderId}/ship-delhivery`, { method: "POST" }),
+  shipInternational: (orderId: string, input: { courier: string; waybill: string; trackingUrl?: string }) =>
+    apiRequest<AdminOrder>(`/admin/orders/${orderId}/ship-international`, { method: "POST", body: JSON.stringify(input) }),
+  updateShipment: (orderId: string, input: { courier?: string; waybill?: string; shippingStatus?: string; trackingUrl?: string }) =>
+    apiRequest<AdminOrder>(`/admin/orders/${orderId}/shipment`, { method: "PATCH", body: JSON.stringify(input) }),
+  trackOrder: (orderId: string, signal?: AbortSignal) =>
+    apiRequest<ShippingInfo>(`/admin/orders/${orderId}/shipping-track`, { signal }),
+  packingSlip: (orderId: string) =>
+    apiRequest<{ slipUrl: string }>(`/admin/orders/${orderId}/delhivery-slip`),
 
-  products: async (params: { page?: number; limit?: number; search?: string; category?: string; status?: ProductStatus; sort?: string }) => {
-    const response = await apiRequest<{ items: Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/products?${query(params)}`);
+  products: async (params: { page?: number; limit?: number; search?: string; category?: string; status?: ProductStatus; sort?: string }, signal?: AbortSignal) => {
+    const response = await apiRequest<{ items: Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/products?${query(params)}`, { signal });
     return { products: response.items, total: response.pagination.total, pagination: response.pagination };
   },
   product: (id: string) => apiRequest<Product>(`/products/${id}`),
@@ -196,25 +217,25 @@ export const adminApi = {
       },
     ),
 
-  categories: (search?: string) => apiRequest<Category[]>(`/categories${search ? `?${query({ search })}` : ""}`),
-  category: (id: string) => apiRequest<Category>(`/categories/${id}`),
+  categories: (search?: string, signal?: AbortSignal) => apiRequest<Category[]>(`/categories${search ? `?${query({ search })}` : ""}`, { signal }),
+  category: (id: string, signal?: AbortSignal) => apiRequest<Category>(`/categories/${id}`, { signal }),
   createCategory: (input: { name: string; isActive?: boolean }) => apiRequest<Category>("/categories", { method: "POST", body: JSON.stringify(input) }),
   updateCategory: (
-  id: string,
-  input: {
-    name?: string;
-    imageUrl?: string | null;
-    imagePublicId?: string | null;
-    isActive?: boolean;
-  },
-) =>
-  apiRequest<Category>(
-    `/categories/${id}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(input),
+    id: string,
+    input: {
+      name?: string;
+      imageUrl?: string | null;
+      imagePublicId?: string | null;
+      isActive?: boolean;
     },
-  ),
+  ) =>
+    apiRequest<Category>(
+      `/categories/${id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(input),
+      },
+    ),
   deleteCategory: (id: string) => apiRequest<{ success: boolean; message: string }>(`/categories/${id}`, { method: "DELETE" }),
   getCategoryImageUploadSignature: (
     categoryId: string,
@@ -226,23 +247,23 @@ export const adminApi = {
   inventory: (productId: string) => apiRequest<InventoryResponse>(`/inventory/${productId}`),
   setStock: (productId: string, stock: number) => apiRequest<InventoryResponse>(`/inventory/${productId}`, { method: "PATCH", body: JSON.stringify({ stock }) }),
 
-  reviews: (params: { page?: number; limit?: number; status?: ReviewStatus; search?: string }) =>
-    apiRequest<Paginated<Review>>(`/admin/reviews?${query(params)}`),
+  reviews: (params: { page?: number; limit?: number; status?: ReviewStatus; search?: string }, signal?: AbortSignal) =>
+    apiRequest<Paginated<Review>>(`/admin/reviews?${query(params)}`, { signal }),
   updateReviewStatus: (id: string, status: ReviewStatus) =>
     apiRequest<Review>(`/admin/reviews/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   deleteReview: (id: string) => apiRequest<{ success: boolean }>(`/admin/reviews/${id}`, { method: "DELETE" }),
 
-  coupons: () => apiRequest<Coupon[]>("/coupons"),
+  coupons: (signal?: AbortSignal) => apiRequest<Coupon[]>("/coupons", { signal }),
   createCoupon: (input: Partial<Coupon> & { code: string; type: "PERCENTAGE" | "FIXED"; value: number }) =>
     apiRequest<Coupon>("/coupons", { method: "POST", body: JSON.stringify(input) }),
   updateCoupon: (id: string, input: Partial<Coupon>) =>
     apiRequest<Coupon>(`/coupons/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
   deleteCoupon: (id: string) => apiRequest<{ success: boolean }>(`/coupons/${id}`, { method: "DELETE" }),
 
-  payments: (params: { page?: number; limit?: number; status?: PaymentStatus; provider?: PaymentProvider; search?: string }) =>
-    apiRequest<Paginated<Payment>>(`/admin/payments?${query(params)}`),
-  refundPayment: (id: string, reason?: string) =>
-    apiRequest<{ success: boolean; alreadyRefunded: boolean; payment: Payment; order?: AdminOrder | null }>(`/admin/payments/${id}/refund`, { method: "POST", body: JSON.stringify({ reason }) }),
+  payments: (params: { page?: number; limit?: number; status?: PaymentStatus; provider?: PaymentProvider; search?: string }, signal?: AbortSignal) =>
+    apiRequest<Paginated<Payment>>(`/admin/payments?${query(params)}`, { signal }),
+  refundPayment: (id: string, input?: { amount?: number; reason?: string }) =>
+    apiRequest<{ success: boolean; alreadyRefunded: boolean; payment: Payment; order?: AdminOrder | null }>(`/admin/payments/${id}/refund`, { method: "POST", body: JSON.stringify(input ?? {}) }),
 
   settings: () => apiRequest<StoreSettings>("/settings"),
   updateSettings: (data: UpdateSettingsInput) =>

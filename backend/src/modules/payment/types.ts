@@ -2,6 +2,8 @@ export interface CreateOrderRequest {
   /** Razorpay accepts integer currency subunits (paise). */
   amount: number;
   currency: string;
+  receipt?: string;
+  notes?: Record<string, string>;
 }
 
 export interface CreateOrderResponse {
@@ -27,6 +29,12 @@ export interface PaymentGateway {
 
   fetchPayment(
     paymentId: string,
+  ): Promise<unknown>;
+
+  capture?(
+    paymentId: string,
+    amountPaise: number,
+    currency?: string,
   ): Promise<unknown>;
 
   /** @param amountPaise — refund amount in smallest currency unit (paise). Omit for full refund. */

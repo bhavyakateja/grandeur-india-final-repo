@@ -16,6 +16,7 @@ import {
   type Category,
   type CategoryImageUploadSignature,
 } from "@/lib/admin-api";
+import { useDebounce } from "@/lib/use-debounce";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -393,30 +394,40 @@ export default function CategoriesPage() {
   const [notice, setNotice] =
     useState("");
 
-  const load = async () => {
+  const debouncedSearch = useDebounce(search, 300);
+
+  const load = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       setError("");
 
       setCategories(
         await adminApi.categories(
-          search.trim() || undefined,
+          debouncedSearch.trim() || undefined,
+          signal,
         ),
       );
     } catch (e) {
+      if (signal?.aborted) return;
       setError(
         e instanceof Error
           ? e.message
           : "Unable to load categories.",
       );
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    void load();
-  }, [search]);
+    const ac = new AbortController();
+    void load(ac.signal);
+    return () => {
+      ac.abort();
+    };
+  }, [debouncedSearch]);
 
   const remove = async (
     category: Category,
@@ -438,7 +449,10 @@ export default function CategoriesPage() {
         "Category deactivated.",
       );
 
-      void load();
+      // In-place local state update without unnecessary backend re-query
+      setCategories((prev) =>
+        prev.map((c) => (c.id === category.id ? { ...c, isActive: false } : c)),
+      );
     } catch (e) {
       setError(
         e instanceof Error

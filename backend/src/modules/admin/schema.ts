@@ -63,6 +63,7 @@ export const paymentListQuerySchema = z.object({
 
 export const refundPaymentSchema = z.object({
   reason: z.string().trim().max(500).optional(),
+  amount: z.coerce.number().positive().optional(),
 });
 
 export const analyticsQuerySchema = z

@@ -31,7 +31,10 @@ declare global {
       theme?: { color?: string };
       handler: (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void | Promise<void>;
       modal?: { ondismiss?: () => void };
-    }) => { open: () => void };
+    }) => {
+      open: () => void;
+      on: (event: "payment.failed", handler: (response: { error?: { description?: string } }) => void) => void;
+    };
   }
 }
-export {};
+export { };

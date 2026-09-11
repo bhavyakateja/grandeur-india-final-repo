@@ -139,6 +139,11 @@ export interface Order {
   state: string;
   country: string;
   postalCode: string;
+  courier?: string | null;
+  waybill?: string | null;
+  shippingStatus?: string | null;
+  trackingUrl?: string | null;
+  isInternational?: boolean;
   items: OrderItem[];
   createdAt: string;
   updatedAt: string;

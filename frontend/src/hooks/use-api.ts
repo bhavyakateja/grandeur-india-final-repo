@@ -407,33 +407,33 @@ export function useProductCatalogue() {
 }
 
 export type FeaturedProduct = {
-    product: Product;
-    badge: "Bestseller" | "New";
+  product: Product;
+  badge: "Bestseller" | "New";
 };
 
 export function useFeaturedProducts() {
-    return useQuery({
-        queryKey:
-            API_KEYS.productFeatured(),
+  return useQuery({
+    queryKey:
+      API_KEYS.productFeatured(),
 
-        queryFn: async () => {
-            const response =
-                await apiRequest<{
-                    items?: FeaturedProduct[];
-                }>(
-                    "/products/featured",
-                );
+    queryFn: async () => {
+      const response =
+        await apiRequest<{
+          items?: FeaturedProduct[];
+        }>(
+          "/products/featured",
+        );
 
-            return Array.isArray(
-                response?.items,
-            )
-                ? response.items
-                : [];
-        },
+      return Array.isArray(
+        response?.items,
+      )
+        ? response.items
+        : [];
+    },
 
-        staleTime:
-            10 * 60 * 1000,
-    });
+    staleTime:
+      10 * 60 * 1000,
+  });
 }
 
 export function useProduct(id: string) {
@@ -826,6 +826,20 @@ export type CreateAddressPayload = {
   isDefault?: boolean;
 };
 
+export async function checkShippingServiceability(pincode: string) {
+  const response = await apiRequest<unknown>(
+    `/shipping/serviceability/${encodeURIComponent(pincode)}`,
+  );
+  return response as {
+    pincode: string;
+    isServiceable: boolean;
+    prePaid: boolean;
+    cod: boolean;
+    remarks?: string;
+    expectedDeliveryDays?: number;
+  };
+}
+
 export function useAddresses() {
   const { isAuthenticated } =
     useAuth();
@@ -1143,22 +1157,28 @@ export function useVerifyPayment() {
       providerPaymentId: string;
       signature: string;
     }) =>
-      apiRequest<Order>(
-        "/payments/verify",
-        {
-          method: "POST",
-          body: JSON.stringify(
-            payload,
-          ),
-        },
-      ),
+      apiRequest<Order>("/payments/verify", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
 
-    onSuccess: (order) => {
-      qc.invalidateQueries({
+    onSuccess: async (order) => {
+      qc.setQueryData<Cart>(
+        API_KEYS.cart(),
+        (current) =>
+          current
+            ? {
+              ...current,
+              items: [],
+            }
+            : current,
+      );
+
+      await qc.invalidateQueries({
         queryKey: API_KEYS.cart(),
       });
 
-      qc.invalidateQueries({
+      await qc.invalidateQueries({
         queryKey: API_KEYS.orders(),
       });
 

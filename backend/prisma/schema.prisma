@@ -271,6 +271,13 @@ model Order {
   country      String
   postalCode   String
 
+  // Shipping & Logistics (Delhivery / International)
+  courier         String?
+  waybill         String?
+  shippingStatus  String?
+  trackingUrl     String?
+  isInternational Boolean @default(false)
+
   items     OrderItem[]
   paymentId String      @unique
   payment   Payment     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
@@ -281,6 +288,7 @@ model Order {
   @@index([userId])
   @@index([status])
   @@index([paymentStatus])
+  @@index([waybill])
   @@index([createdAt])
   @@index([userId, createdAt])
 }

@@ -20,6 +20,7 @@ import {
   useCheckout,
   useCreatePayment,
   useVerifyPayment,
+  checkShippingServiceability,
 } from "@/hooks/use-api";
 import { AuthDialog } from "@/components/auth-dialog";
 import { Input } from "@/components/ui/input";
@@ -74,7 +75,7 @@ function loadRazorpay() {
 
 export default function CheckoutPage() {
   const { lines } = useStore();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const [authOpen, setAuthOpen] = useState(false);
@@ -82,6 +83,7 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] =
     useState("");
   const [couponCode, setCouponCode] = useState("");
+  const [couponError, setCouponError] = useState("");
   const [placing, setPlacing] = useState(false);
 
   const {
@@ -101,8 +103,8 @@ export default function CheckoutPage() {
       setSelectedAddressId(
         addresses.find((address) => address.isDefault)
           ?.id ||
-          addresses[0]?.id ||
-          "",
+        addresses[0]?.id ||
+        "",
       );
     }
   }, [addresses, selectedAddressId]);
@@ -206,6 +208,8 @@ export default function CheckoutPage() {
       return;
     }
 
+    setCouponError("");
+
     try {
       await checkoutMutation.mutateAsync({
         addressId: selectedAddressId,
@@ -220,6 +224,13 @@ export default function CheckoutPage() {
           : "Order total calculated",
       );
     } catch (error) {
+      if (
+        couponCode.trim() &&
+        error instanceof Error &&
+        /coupon/i.test(error.message)
+      ) {
+        setCouponError("Coupon is not valid or active.");
+      }
       toast.error(
         error instanceof Error
           ? error.message
@@ -274,9 +285,10 @@ export default function CheckoutPage() {
         order_id: payment.providerOrderId,
         prefill: activeAddress
           ? {
-              name: activeAddress.fullName,
-              contact: activeAddress.phone,
-            }
+            name: activeAddress.fullName,
+            contact: activeAddress.phone,
+            email: user?.email,
+          }
           : undefined,
         theme: {
           color: "#102650",
@@ -314,6 +326,11 @@ export default function CheckoutPage() {
         modal: {
           ondismiss: () => setPlacing(false),
         },
+      });
+
+      gateway.on("payment.failed", (response) => {
+        setPlacing(false);
+        toast.error(response.error?.description ?? "Payment was declined. Please try again.");
       });
 
       gateway.open();
@@ -386,12 +403,11 @@ export default function CheckoutPage() {
                     {addresses.map((address) => (
                       <label
                         key={address.id}
-                        className={`block cursor-pointer border p-5 transition-colors ${
-                          selectedAddressId ===
+                        className={`block cursor-pointer border p-5 transition-colors ${selectedAddressId ===
                           address.id
-                            ? "border-[#102650] bg-[#fdf7f4]"
-                            : "border-[#102650]/10 hover:border-[#102650]/25"
-                        }`}
+                          ? "border-[#102650] bg-[#fdf7f4]"
+                          : "border-[#102650]/10 hover:border-[#102650]/25"
+                          }`}
                       >
                         <input
                           type="radio"
@@ -413,17 +429,16 @@ export default function CheckoutPage() {
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex items-start gap-3">
                             <span
-                              className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border ${
-                                selectedAddressId ===
+                              className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border ${selectedAddressId ===
                                 address.id
-                                  ? "border-[#102650]"
-                                  : "border-[#102650]/25"
-                              }`}
+                                ? "border-[#102650]"
+                                : "border-[#102650]/25"
+                                }`}
                             >
                               {selectedAddressId ===
                                 address.id && (
-                                <span className="size-2 rounded-full bg-[#c89a4b]" />
-                              )}
+                                  <span className="size-2 rounded-full bg-[#c89a4b]" />
+                                )}
                             </span>
 
                             <div>
@@ -442,7 +457,7 @@ export default function CheckoutPage() {
                               </p>
 
                               <p className="mt-1 text-xs text-[#102650]/45">
-                                {address.phone}
+                                {address.phone} · {address.country}
                               </p>
                             </div>
                           </div>
@@ -472,7 +487,7 @@ export default function CheckoutPage() {
                                 address.line1,
                               city: address.city,
                               state: address.state,
-                              country: "India",
+                              country: address.country,
                               postalCode:
                                 address.pincode,
                               isDefault:
@@ -543,6 +558,7 @@ export default function CheckoutPage() {
                         setCouponCode(
                           event.target.value.toUpperCase(),
                         );
+                        setCouponError("");
                         checkoutMutation.reset();
                       }}
                       onKeyDown={(event) => {
@@ -570,6 +586,12 @@ export default function CheckoutPage() {
                         : "Apply"}
                     </Button>
                   </div>
+
+                  {couponError && (
+                    <p className="mt-2 text-xs text-red-600" role="alert">
+                      {couponError}
+                    </p>
+                  )}
                 </div>
 
                 {preview && (
@@ -587,10 +609,10 @@ export default function CheckoutPage() {
                         value={
                           Number(preview.discount) > 0
                             ? `−${formatINR(
-                                Number(
-                                  preview.discount,
-                                ),
-                              )}`
+                              Number(
+                                preview.discount,
+                              ),
+                            )}`
                             : "—"
                         }
                         accent={
@@ -610,10 +632,10 @@ export default function CheckoutPage() {
                         value={
                           Number(preview.shipping)
                             ? formatINR(
-                                Number(
-                                  preview.shipping,
-                                ),
-                              )
+                              Number(
+                                preview.shipping,
+                              ),
+                            )
                             : "Free"
                         }
                       />
@@ -761,7 +783,7 @@ export default function CheckoutPage() {
                       (sum, line) =>
                         sum +
                         Number(line.product.price) *
-                          line.qty,
+                        line.qty,
                       0,
                     ),
                   )}
@@ -872,19 +894,51 @@ export function AddressForm({
       city: "",
       state: "",
       pincode: "",
+      country: "India",
       isDefault: false,
     },
   );
+  const [serviceability, setServiceability] = useState<{
+    loading: boolean;
+    serviceable: boolean | null;
+    message: string;
+  }>({ loading: false, serviceable: null, message: "" });
+
+  useEffect(() => {
+    if (form.country !== "India" || !/^\d{6}$/.test(form.pincode)) {
+      setServiceability({ loading: false, serviceable: null, message: "" });
+      return;
+    }
+
+    let cancelled = false;
+    setServiceability({ loading: true, serviceable: null, message: "Checking Delhivery serviceability..." });
+    void checkShippingServiceability(form.pincode)
+      .then((result) => {
+        if (cancelled) return;
+        setServiceability({
+          loading: false,
+          serviceable: result.isServiceable,
+          message: result.remarks ?? (result.isServiceable ? "Delhivery Express delivery available" : "Pincode is not serviceable"),
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setServiceability({ loading: false, serviceable: false, message: "Unable to check Delhivery serviceability" });
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [form.country, form.pincode]);
 
   const set =
     (key: keyof Address) =>
-    (
-      event: React.ChangeEvent<HTMLInputElement>,
-    ) =>
-      setForm((current) => ({
-        ...current,
-        [key]: event.target.value,
-      }));
+      (
+        event: React.ChangeEvent<HTMLInputElement>,
+      ) =>
+        setForm((current) => ({
+          ...current,
+          [key]: event.target.value,
+        }));
 
   return (
     <form
@@ -901,13 +955,28 @@ export function AddressForm({
         required
       />
 
+      <label className="text-xs text-[#102650]/60">
+        Country
+        <select
+          className="mt-2 h-11 w-full border border-[#102650]/15 bg-white px-3 text-sm outline-none focus:border-[#102650]"
+          value={form.country}
+          onChange={(event) =>
+            setForm((current) => ({ ...current, country: event.target.value }))
+          }
+        >
+          {['India', 'United States', 'United Kingdom', 'United Arab Emirates', 'Canada', 'Australia', 'Singapore', 'Germany', 'France'].map((country) => (
+            <option key={country}>{country}</option>
+          ))}
+        </select>
+      </label>
+
       <TextField
         label="Phone"
         value={form.phone}
         onChange={set("phone")}
         required
-        inputMode="numeric"
-        pattern="[6-9][0-9]{9}"
+        inputMode="tel"
+        pattern={form.country === "India" ? "[6-9][0-9]{9}" : "\\+?[0-9\\s\\-()]{7,20}"}
       />
 
       <TextField
@@ -915,9 +984,18 @@ export function AddressForm({
         value={form.pincode}
         onChange={set("pincode")}
         required
-        inputMode="numeric"
-        pattern="[0-9]{6}"
+        inputMode={form.country === "India" ? "numeric" : "text"}
+        pattern={form.country === "India" ? "[0-9]{6}" : "[A-Za-z0-9\\s\\-]{3,12}"}
       />
+
+      {form.country === "India" && serviceability.message && (
+        <p className={`text-xs sm:col-span-2 ${serviceability.serviceable ? "text-emerald-700" : "text-red-600"}`}>
+          {serviceability.loading ? serviceability.message : `${serviceability.serviceable ? "✓ " : ""}${serviceability.message}`}
+        </p>
+      )}
+      {form.country !== "India" && (
+        <p className="text-xs text-blue-700 sm:col-span-2">International Express Shipping</p>
+      )}
 
       <TextField
         label="Address"

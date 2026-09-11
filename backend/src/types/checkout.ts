@@ -31,4 +31,5 @@ export interface CheckoutSnapshot {
   total: string;
 
   couponCode?: string;
+  isInternational?: boolean;
 }

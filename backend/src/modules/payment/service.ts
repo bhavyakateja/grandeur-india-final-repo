@@ -35,6 +35,8 @@ import * as couponRepository
 
 import * as notificationService
   from "../notification/service";
+import * as settingsService
+  from "../settings/service";
 
 import {
   paymentGateway,
@@ -103,6 +105,7 @@ function createSnapshot(
     total: checkout.total.toFixed(2),
 
     couponCode,
+    isInternational: address.country.trim().toLowerCase() !== "india",
   };
 }
 
@@ -115,17 +118,17 @@ export async function createPayment(
   userId: string,
   data: CreatePaymentInput,
 ) {
-  const checkout =
-    await checkoutService.checkout(
-      userId,
-      data,
-    );
+  const [checkout, address, settings] = await Promise.all([
+    checkoutService.checkout(userId, data),
+    checkoutRepository.findAddress(userId, data.addressId),
+    settingsService.getSettings(),
+  ]);
 
-  const address =
-    await checkoutRepository.findAddress(
-      userId,
-      data.addressId,
+  if (!address) {
+    throw new NotFoundException(
+      "Address not found",
     );
+  }
 
   const checkoutSnapshot =
     createSnapshot(
@@ -142,10 +145,19 @@ export async function createPayment(
     );
   }
 
+  const currency = settings.currency || "INR";
+  const isInternational = address.country.trim().toLowerCase() !== "india";
+
   const providerOrder =
     await paymentGateway.createOrder({
       amount: amountInPaise,
-      currency: "INR",
+      currency,
+      receipt: `rcpt_${Date.now().toString(36)}`,
+      notes: {
+        userId,
+        addressId: data.addressId,
+        isInternational: String(isInternational),
+      },
     });
 
   const payment =
@@ -157,7 +169,7 @@ export async function createPayment(
         providerOrder.id,
       amount:
         checkoutSnapshot.total,
-      currency: "INR",
+      currency,
       metadata:
         checkoutSnapshot as unknown as import(
         "../../generated/prisma/client"
@@ -171,7 +183,7 @@ export async function createPayment(
       providerOrder.id,
     amount:
       checkoutSnapshot.total,
-    currency: "INR",
+    currency,
     key: env.RAZORPAY_KEY_ID,
   };
 }
@@ -226,11 +238,21 @@ export async function verifyPayment(
 
   if (
     gatewayPayment.order_id !== data.providerOrderId ||
-    gatewayPayment.status !== "captured" ||
     gatewayPayment.currency !== payment.currency ||
     gatewayPayment.amount !== decimalToPaise(payment.amount.toFixed(2))
   ) {
     throw new BadRequestException("Razorpay payment does not match this order");
+  }
+
+  // If status is "authorized", capture it immediately to complete settlement
+  if (gatewayPayment.status === "authorized" && paymentGateway.capture) {
+    await paymentGateway.capture(
+      data.providerPaymentId,
+      decimalToPaise(payment.amount.toFixed(2)),
+      payment.currency,
+    );
+  } else if (gatewayPayment.status !== "captured") {
+    throw new BadRequestException(`Payment status is ${gatewayPayment.status}, expected captured`);
   }
 
   return settlePayment(

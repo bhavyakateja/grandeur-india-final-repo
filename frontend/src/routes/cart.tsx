@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useState } from "react";
 import {
   ArrowRight,
   Minus,
@@ -12,6 +13,7 @@ import { useStore } from "@/lib/store";
 import { useWishlist } from "@/hooks/use-api";
 import { ProductCard } from "@/components/product-card";
 import { useAuth } from "@/context/auth-context";
+import { AuthDialog } from "@/components/auth-dialog";
 
 function CartPage() {
   const {
@@ -21,6 +23,7 @@ function CartPage() {
   } = useStore();
 
   const { isAuthenticated } = useAuth();
+  const [authOpen, setAuthOpen] = useState(false);
 
   const {
     data: wishlistData = [],
@@ -300,13 +303,24 @@ function CartPage() {
                   </p>
                 </div>
 
-                <Link
-                  to="/checkout"
-                  className="group mt-7 flex h-14 items-center justify-center gap-3 bg-[#102650] text-[10px] font-medium uppercase tracking-[0.23em] text-white transition-colors hover:bg-[#18325f]"
-                >
-                  Proceed to checkout
-                  <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
-                </Link>
+                {isAuthenticated ? (
+                  <Link
+                    to="/checkout"
+                    className="group mt-7 flex h-14 items-center justify-center gap-3 bg-[#102650] text-[10px] font-medium uppercase tracking-[0.23em] text-white transition-colors hover:bg-[#18325f]"
+                  >
+                    Proceed to checkout
+                    <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAuthOpen(true)}
+                    className="group mt-7 flex h-14 w-full items-center justify-center gap-3 bg-[#102650] text-[10px] font-medium uppercase tracking-[0.23em] text-white transition-colors hover:bg-[#18325f]"
+                  >
+                    Sign in to checkout
+                    <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-1" />
+                  </button>
+                )}
               </div>
             </div>
           </aside>
@@ -318,6 +332,8 @@ function CartPage() {
         loading={wishlistLoading}
         authenticated={isAuthenticated}
       />
+
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
     </main>
   );
 }

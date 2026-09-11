@@ -20,6 +20,7 @@ import {
   type ProductInput,
   type ProductStatus,
 } from "@/lib/admin-api";
+import { useDebounce } from "@/lib/use-debounce";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +54,7 @@ function ProductForm({
   initial?: Product;
   categories: Category[];
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (p: Product) => void;
 }) {
   const [form, setForm] = useState<ProductInput>({
     name: initial?.name ?? "",
@@ -125,10 +126,10 @@ function ProductForm({
       setProduct(saved);
 
       /*
-       * Refresh the product list in the parent,
+       * Notify the parent of saved product,
        * but do NOT close this modal.
        */
-      onSaved();
+      onSaved(saved);
     } catch (e) {
       setError(
         e instanceof Error
@@ -283,20 +284,21 @@ function ProductForm({
        * One database request for all uploaded
        * Cloudinary assets.
        */
-      await adminApi.attachProductImages(
+      const uploadedImages = await adminApi.attachProductImages(
         product.id,
         uploads,
       );
 
-      /*
-       * Refresh only once.
-       */
-      const updated =
-        await adminApi.product(
-          product.id,
-        );
+      const updated: Product = {
+        ...product,
+        images: [
+          ...(product.images || []),
+          ...(Array.isArray(uploadedImages) ? uploadedImages : []),
+        ],
+      };
 
       setProduct(updated);
+      onSaved(updated);
     } catch (e) {
       setError(
         e instanceof Error
@@ -342,14 +344,16 @@ function ProductForm({
         imageId,
       );
 
-      const updated =
-        await adminApi.product(
-          product.id,
-        );
+      const updated: Product = {
+        ...product,
+        images: (product.images || []).map((img) => ({
+          ...img,
+          isPrimary: img.id === imageId,
+        })),
+      };
 
       setProduct(updated);
-
-      onSaved();
+      onSaved(updated);
     } catch (e) {
       setError(
         e instanceof Error
@@ -382,14 +386,13 @@ function ProductForm({
         imageId,
       );
 
-      const updated =
-        await adminApi.product(
-          product.id,
-        );
+      const updated: Product = {
+        ...product,
+        images: (product.images || []).filter((img) => img.id !== imageId),
+      };
 
       setProduct(updated);
-
-      onSaved();
+      onSaved(updated);
     } catch (e) {
       setError(
         e instanceof Error
@@ -797,57 +800,58 @@ export default function ProductsPage() {
     useState("");
 
   const limit = 12;
+  const debouncedSearch = useDebounce(search, 300);
 
-  const load = async () => {
+  // Fetch categories only once on mount instead of on every pagination/filter change
+  useEffect(() => {
+    let active = true;
+    adminApi.categories().then((cats) => {
+      if (active) setCategories(cats);
+    }).catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const load = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       setError("");
 
-      const [
-        result,
-        cats,
-      ] = await Promise.all([
-        adminApi.products({
-          page,
-          limit,
-          search:
-            search.trim() ||
-            undefined,
-          status:
-            (status ||
-              undefined) as
-            | ProductStatus
-            | undefined,
-          category:
-            category || undefined,
-          sort,
-        }),
-        adminApi.categories(),
-      ]);
+      const result = await adminApi.products({
+        page,
+        limit,
+        search: debouncedSearch.trim() || undefined,
+        status: (status || undefined) as ProductStatus | undefined,
+        category: category || undefined,
+        sort,
+      }, signal);
 
-      setProducts(
-        result.products,
-      );
-
+      setProducts(result.products);
       setTotal(result.total);
-
-      setCategories(cats);
     } catch (e) {
+      if (signal?.aborted) return;
       setError(
         e instanceof Error
           ? e.message
           : "Unable to load products.",
       );
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    void load();
+    const ac = new AbortController();
+    void load(ac.signal);
+    return () => {
+      ac.abort();
+    };
   }, [
     page,
-    search,
+    debouncedSearch,
     status,
     category,
     sort,
@@ -873,7 +877,9 @@ export default function ProductsPage() {
         "Product deleted.",
       );
 
-      void load();
+      // In-place local state update without redundant DB roundtrip
+      setProducts((prev) => prev.filter((p) => p.id !== product.id));
+      setTotal((t) => Math.max(0, t - 1));
     } catch (e) {
       setError(
         e instanceof Error
@@ -1238,14 +1244,20 @@ export default function ProductsPage() {
           onClose={() =>
             setEditing(null)
           }
-          onSaved={() => {
+          onSaved={(savedProduct) => {
             setNotice(
               editing === "new"
                 ? "Product saved successfully."
                 : "Product updated successfully.",
             );
 
-            void load();
+            if (editing !== "new") {
+              setProducts((prev) =>
+                prev.map((p) => (p.id === savedProduct.id ? savedProduct : p)),
+              );
+            } else {
+              void load();
+            }
           }}
         />
       )}

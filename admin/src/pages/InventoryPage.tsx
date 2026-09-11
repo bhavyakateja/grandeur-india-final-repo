@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Search, Check, X } from "lucide-react";
 import { adminApi, type Product } from "@/lib/admin-api";
+import { useDebounce } from "@/lib/use-debounce";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PageHeader, Loading, ErrorState, Empty, Badge, formatMoney, statusTone } from "./common";
@@ -17,29 +18,37 @@ export default function InventoryPage() {
   const [saving, setSaving] = useState(false);
 
   const limit = 15;
+  const debouncedSearch = useDebounce(search, 300);
 
-  const load = async () => {
+  const load = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       setError("");
       const r = await adminApi.products({
         page,
         limit,
-        search: search.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
         sort: "name",
-      });
+      }, signal);
       setProducts(r.products);
       setTotal(r.total);
     } catch (e) {
+      if (signal?.aborted) return;
       setError(e instanceof Error ? e.message : "Unable to load inventory.");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    void load();
-  }, [page, search]);
+    const ac = new AbortController();
+    void load(ac.signal);
+    return () => {
+      ac.abort();
+    };
+  }, [page, debouncedSearch]);
 
   const handleStartEdit = (p: Product) => {
     setEditingId(p.id);
@@ -61,8 +70,11 @@ export default function InventoryPage() {
       setSaving(true);
       setError("");
       await adminApi.setStock(p.id, stock);
+      // In-place local state update without redundant DB query for entire page
+      setProducts((prev) =>
+        prev.map((item) => (item.id === p.id ? { ...item, stock } : item)),
+      );
       setEditingId(null);
-      void load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to update stock.");
     } finally {

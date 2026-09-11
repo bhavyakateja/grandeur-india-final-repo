@@ -107,3 +107,44 @@ adminRouter.post(
   "/payments/:id/refund",
   controller.refundPayment,
 );
+
+// Shipping
+adminRouter.post(
+  "/orders/:id/shipment",
+  controller.createShipment,
+);
+
+adminRouter.post(
+  "/orders/:id/ship-delhivery",
+  controller.createShipment,
+);
+
+adminRouter.patch(
+  "/orders/:id/shipment",
+  controller.updateShipment,
+);
+
+adminRouter.post(
+  "/orders/:id/ship-international",
+  controller.dispatchInternational,
+);
+
+adminRouter.get(
+  "/orders/:id/tracking",
+  controller.trackOrder,
+);
+
+adminRouter.get(
+  "/orders/:id/shipping-track",
+  controller.trackOrder,
+);
+
+adminRouter.get(
+  "/orders/:id/packing-slip",
+  controller.getPackingSlip,
+);
+
+adminRouter.get(
+  "/orders/:id/delhivery-slip",
+  controller.getPackingSlip,
+);

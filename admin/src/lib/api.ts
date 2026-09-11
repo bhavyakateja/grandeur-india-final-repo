@@ -63,35 +63,60 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
   retryOn401 = true,
 ): Promise<T> {
+  const method = (options.method ?? "GET").toUpperCase();
   const url = endpoint.startsWith("http") ? endpoint : `${API_BASE_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
-  const headers = new Headers(options.headers);
-  headers.set("Accept", "application/json");
-  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
+
+  // Only collapse concurrent in-flight requests for GET requests without custom signals
+  const isGet = method === "GET" && !options.body;
+  const inFlightKey = isGet && !options.signal ? `${url}:${accessToken ?? ""}` : null;
+
+  if (inFlightKey && inFlightRequests.has(inFlightKey)) {
+    return inFlightRequests.get(inFlightKey) as Promise<T>;
   }
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
-  let response = await fetch(url, { ...options, headers, credentials: "include" });
-
-  if (response.status === 401 && retryOn401 && !endpoint.startsWith("/auth/")) {
-    const token = await refreshAccessToken();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-      response = await fetch(url, { ...options, headers, credentials: "include" });
+  const execute = async (): Promise<T> => {
+    const headers = new Headers(options.headers);
+    headers.set("Accept", "application/json");
+    if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
     }
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+
+    let response = await fetch(url, { ...options, headers, credentials: "include" });
+
+    if (response.status === 401 && retryOn401 && !endpoint.startsWith("/auth/")) {
+      const token = await refreshAccessToken();
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+        response = await fetch(url, { ...options, headers, credentials: "include" });
+      }
+    }
+
+    const data = await parseBody(response);
+    if (!response.ok) throw new ApiError(messageFor(response.status, data), response.status, data);
+    if (data && typeof data === "object" && "success" in data && "data" in data) {
+      return (data as { data: T }).data;
+    }
+    return data as T;
+  };
+
+  const promise = execute();
+
+  if (inFlightKey) {
+    inFlightRequests.set(inFlightKey, promise);
+    promise.finally(() => {
+      inFlightRequests.delete(inFlightKey);
+    });
   }
 
-  const data = await parseBody(response);
-  if (!response.ok) throw new ApiError(messageFor(response.status, data), response.status, data);
-  if (data && typeof data === "object" && "success" in data && "data" in data) {
-    return (data as { data: T }).data;
-  }
-  return data as T;
+  return promise;
 }
 
 export async function uploadFile<T>(file: File, folder: "products" | "reviews" | "avatars"): Promise<T> {
@@ -100,3 +125,4 @@ export async function uploadFile<T>(file: File, folder: "products" | "reviews" |
   form.append("folder", folder);
   return apiRequest<T>("/upload", { method: "POST", body: form });
 }
+

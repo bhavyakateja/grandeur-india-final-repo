@@ -207,6 +207,15 @@ export async function createFromPayment(
           postalCode:
             snapshot.address.postalCode,
 
+          isInternational:
+            snapshot.isInternational ??
+            snapshot.address.country.trim().toLowerCase() !== "india",
+
+          courier:
+            snapshot.address.country.trim().toLowerCase() === "india"
+              ? "DELHIVERY"
+              : null,
+
           items: {
             create:
               snapshot.items.map(

@@ -54,21 +54,21 @@ export async function findUsers(
   const where: Prisma.UserWhereInput = {
     ...(search
       ? {
-          OR: [
-            {
-              name: {
-                contains: search,
-                mode: "insensitive",
-              },
+        OR: [
+          {
+            name: {
+              contains: search,
+              mode: "insensitive",
             },
-            {
-              email: {
-                contains: search,
-                mode: "insensitive",
-              },
+          },
+          {
+            email: {
+              contains: search,
+              mode: "insensitive",
             },
-          ],
-        }
+          },
+        ],
+      }
       : {}),
     ...(role ? { role } : {}),
     ...(isActive !== undefined
@@ -151,40 +151,40 @@ export async function findOrders(
     ...(status ? { status } : {}),
     ...(search
       ? {
-          OR: [
-            {
-              orderNumber: {
+        OR: [
+          {
+            orderNumber: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            fullName: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            phone: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            user: {
+              email: {
                 contains: search,
                 mode: "insensitive",
               },
             },
-            {
-              fullName: {
-                contains: search,
-                mode: "insensitive",
-              },
-            },
-            {
-              phone: {
-                contains: search,
-                mode: "insensitive",
-              },
-            },
-            {
-              user: {
-                email: {
-                  contains: search,
-                  mode: "insensitive",
-                },
-              },
-            },
-          ],
-        }
+          },
+        ],
+      }
       : {}),
     ...(from || to
       ? {
-          createdAt: dateRange(from, to),
-        }
+        createdAt: dateRange(from, to),
+      }
       : {}),
   };
 
@@ -312,7 +312,16 @@ export async function updateOrderStatus(
   });
 }
 
-export async function dashboardKpis() {
+export async function dashboardKpis(from?: Date, to?: Date) {
+  const orderRange = from || to
+    ? {
+      createdAt: {
+        ...(from ? { gte: from } : {}),
+        ...(to ? { lte: to } : {}),
+      },
+    }
+    : {};
+
   const [
     customers,
     products,
@@ -326,10 +335,11 @@ export async function dashboardKpis() {
       },
     }),
     prisma.product.count(),
-    prisma.order.count(),
+    prisma.order.count({ where: orderRange }),
     prisma.order.count({
       where: {
         status: "PENDING",
+        ...orderRange,
       },
     }),
     prisma.order.aggregate({
@@ -338,6 +348,7 @@ export async function dashboardKpis() {
         status: {
           not: "CANCELLED",
         },
+        ...orderRange,
       },
       _sum: {
         total: true,
@@ -443,8 +454,18 @@ export async function salesByDay(
   `);
 }
 
-export function orderStatusCounts() {
+export function orderStatusCounts(from?: Date, to?: Date) {
   return prisma.order.groupBy({
+    where: {
+      ...(from || to
+        ? {
+          createdAt: {
+            ...(from ? { gte: from } : {}),
+            ...(to ? { lte: to } : {}),
+          },
+        }
+        : {}),
+    },
     by: ["status"],
     _count: {
       _all: true,
@@ -469,45 +490,45 @@ export async function findReviews(
     ...(status ? { status } : {}),
     ...(search
       ? {
-          OR: [
-            {
-              title: {
+        OR: [
+          {
+            title: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            comment: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            user: {
+              name: {
                 contains: search,
                 mode: "insensitive",
               },
             },
-            {
-              comment: {
+          },
+          {
+            user: {
+              email: {
                 contains: search,
                 mode: "insensitive",
               },
             },
-            {
-              user: {
-                name: {
-                  contains: search,
-                  mode: "insensitive",
-                },
+          },
+          {
+            product: {
+              name: {
+                contains: search,
+                mode: "insensitive",
               },
             },
-            {
-              user: {
-                email: {
-                  contains: search,
-                  mode: "insensitive",
-                },
-              },
-            },
-            {
-              product: {
-                name: {
-                  contains: search,
-                  mode: "insensitive",
-                },
-              },
-            },
-          ],
-        }
+          },
+        ],
+      }
       : {}),
   };
 
@@ -728,37 +749,37 @@ export async function findPayments(
     ...(status ? { status } : {}),
     ...(search
       ? {
-          OR: [
-            {
-              providerOrderId: {
+        OR: [
+          {
+            providerOrderId: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            providerPaymentId: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+          {
+            user: {
+              name: {
                 contains: search,
                 mode: "insensitive",
               },
             },
-            {
-              providerPaymentId: {
+          },
+          {
+            user: {
+              email: {
                 contains: search,
                 mode: "insensitive",
               },
             },
-            {
-              user: {
-                name: {
-                  contains: search,
-                  mode: "insensitive",
-                },
-              },
-            },
-            {
-              user: {
-                email: {
-                  contains: search,
-                  mode: "insensitive",
-                },
-              },
-            },
-          ],
-        }
+          },
+        ],
+      }
       : {}),
   };
 
@@ -819,23 +840,34 @@ export async function markRefunded(
   paymentId: string,
   orderId: string,
   cancelOrder: boolean,
+  refundedAmount: number,
+  isFullRefund: boolean,
 ) {
   return prisma.$transaction(async (tx) => {
+    const currentPayment = await tx.payment.findUniqueOrThrow({
+      where: { id: paymentId },
+    });
     const payment = await tx.payment.update({
       where: { id: paymentId },
       data: {
-        status: "REFUNDED",
+        status: isFullRefund ? "REFUNDED" : "PAID",
+        metadata: {
+          ...(currentPayment.metadata && typeof currentPayment.metadata === "object"
+            ? currentPayment.metadata as Record<string, unknown>
+            : {}),
+          refundedAmount: Number(refundedAmount.toFixed(2)),
+        },
       },
     });
 
     const order = await tx.order.update({
       where: { id: orderId },
       data: {
-        paymentStatus: "REFUNDED",
+        paymentStatus: isFullRefund ? "REFUNDED" : "PAID",
         ...(cancelOrder
           ? {
-              status: "CANCELLED",
-            }
+            status: "CANCELLED",
+          }
           : {}),
       },
       include: {

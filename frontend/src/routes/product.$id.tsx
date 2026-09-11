@@ -20,6 +20,7 @@ import {
 } from "@/hooks/use-api";
 import { useAuth } from "@/context/auth-context";
 import { ProductCard } from "@/components/product-card";
+import { AuthDialog } from "@/components/auth-dialog";
 import {
   Accordion,
   AccordionContent,
@@ -94,6 +95,7 @@ export default function ProductPage() {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewTitle, setReviewTitle] = useState("");
   const [activeImage, setActiveImage] = useState(0);
+  const [authOpen, setAuthOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -199,17 +201,12 @@ export default function ProductPage() {
   };
 
   const add = () => {
-    if (!isAuthenticated) {
-      toast.error("Please sign in to add items to your bag");
-      return false;
-    }
-
     if (!isAvailable) {
       toast.error("This piece is currently unavailable");
       return false;
     }
 
-    addToCart(product.id, qty);
+    addToCart(product.id, qty, product);
     toast.success("Added to bag");
     return true;
   };
@@ -310,9 +307,7 @@ export default function ProductPage() {
               type="button"
               onClick={() => {
                 if (!isAuthenticated) {
-                  toast.error(
-                    "Please sign in to use your wishlist",
-                  );
+                  setAuthOpen(true);
                   return;
                 }
 
@@ -512,258 +507,241 @@ export default function ProductPage() {
         </div>
       </section>
 
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} />
+
       {/* ------------------------------------------------------------------ */}
       {/* Reviews — deliberately outside the product grid                    */}
       {/* ------------------------------------------------------------------ */}
       <section className="mt-16 border-t border-border/50 pt-8 sm:mt-20 sm:pt-10">
-        <Accordion type="single" collapsible>
-          <AccordionItem
-            value="reviews"
-            className="border-b-0"
-          >
-            <AccordionTrigger className="py-3 text-[10px] uppercase tracking-[0.18em] hover:no-underline">
-              Customer Reviews ({reviewCount})
-            </AccordionTrigger>
+        <div className="flex items-center justify-between gap-5">
+          <h2 className="text-[10px] uppercase tracking-[0.18em]">
+            Customer Reviews ({reviewCount})
+          </h2>
+          <span className="text-xs text-muted-foreground">
+            {averageRating > 0 ? `${averageRating.toFixed(1)} / 5` : "No rating yet"}
+          </span>
+        </div>
 
-            <AccordionContent className="pt-6">
-              <div className="grid gap-10 lg:grid-cols-[240px_minmax(0,1fr)]">
-                {/* Rating summary */}
-                <div className="lg:border-r lg:border-border/50 lg:pr-10">
-                  <p className="font-display text-5xl leading-none">
-                    {averageRating > 0
-                      ? averageRating.toFixed(1)
-                      : "—"}
+        <div className="mt-8 grid gap-10 lg:grid-cols-[240px_minmax(0,1fr)]">
+          {/* Rating summary */}
+          <div className="lg:border-r lg:border-border/50 lg:pr-10">
+            <p className="font-display text-5xl leading-none">
+              {averageRating > 0
+                ? averageRating.toFixed(1)
+                : "—"}
+            </p>
+
+            <div className="mt-3">
+              <RatingStars value={averageRating} />
+            </div>
+
+            <p className="mt-2 text-xs text-muted-foreground">
+              {reviewCount}{" "}
+              {reviewCount === 1
+                ? "review"
+                : "reviews"}
+            </p>
+          </div>
+
+          {/* Review form + reviews */}
+          <div className="min-w-0">
+            {/* Review form */}
+            <form
+              onSubmit={submitReview}
+              className="border border-border/60 bg-blush/10 p-5 sm:p-6"
+            >
+              <div className="flex items-start gap-3">
+                <MessageSquare className="mt-0.5 size-4 shrink-0 text-gold" />
+
+                <div>
+                  <p className="text-sm font-medium">
+                    Share your experience
                   </p>
 
-                  <div className="mt-3">
-                    <RatingStars value={averageRating} />
-                  </div>
-
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {reviewCount}{" "}
-                    {reviewCount === 1
-                      ? "review"
-                      : "reviews"}
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    Reviews are available to customers
+                    who have purchased this piece.
                   </p>
-                </div>
-
-                {/* Reviews + form */}
-                <div className="min-w-0">
-                  {reviewsLoading ? (
-                    <p className="text-sm text-muted-foreground">
-                      Loading reviews…
-                    </p>
-                  ) : reviews.length === 0 ? (
-                    <div className="border border-dashed border-border/70 px-5 py-10 text-center">
-                      <MessageSquare className="mx-auto size-5 text-gold" />
-
-                      <p className="mt-3 font-display text-xl">
-                        Be the first to share
-                      </p>
-
-                      <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                        Your experience can help another
-                        customer choose their piece.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-7">
-                      {reviews.map((review) => (
-                        <article
-                          key={review.id}
-                          className="border-b border-border/50 pb-7 last:border-0 last:pb-0"
-                        >
-                          <div className="flex items-start justify-between gap-5">
-                            <div>
-                              <p className="text-sm font-medium">
-                                {review.user?.name ||
-                                  "Customer"}
-                              </p>
-
-                              <p className="mt-1 text-[10px] uppercase tracking-[0.13em] text-muted-foreground">
-                                Verified customer
-                              </p>
-                            </div>
-
-                            <RatingStars
-                              value={review.rating}
-                              size="size-3.5"
-                            />
-                          </div>
-
-                          {review.title && (
-                            <p className="mt-4 font-medium">
-                              {review.title}
-                            </p>
-                          )}
-
-                          {review.comment && (
-                            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                              {review.comment}
-                            </p>
-                          )}
-                        </article>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Review form */}
-                  <form
-                    onSubmit={submitReview}
-                    className="mt-8 border-t border-border/50 pt-8"
-                  >
-                    <div className="flex items-start gap-3">
-                      <MessageSquare className="mt-0.5 size-4 shrink-0 text-gold" />
-
-                      <div>
-                        <p className="text-sm font-medium">
-                          Share your experience
-                        </p>
-
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                          Reviews are available to customers
-                          who have purchased this piece.
-                        </p>
-                      </div>
-                    </div>
-
-                    {!isAuthenticated ? (
-                      <div className="mt-5 border border-border/60 bg-blush/15 p-5">
-                        <p className="text-sm">
-                          Sign in to share your experience.
-                        </p>
-
-                        <Link
-                          to="/login"
-                          className="mt-3 inline-block text-[10px] uppercase tracking-[0.18em] text-gold"
-                        >
-                          Sign in
-                        </Link>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="mt-6">
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                            Your rating
-                          </p>
-
-                          <div className="mt-2 flex gap-1">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <button
-                                key={star}
-                                type="button"
-                                onClick={() =>
-                                  setReviewRating(star)
-                                }
-                                aria-label={`${star} stars`}
-                                className="p-1 text-gold transition-transform hover:scale-110"
-                              >
-                                <Star
-                                  className={cn(
-                                    "size-5",
-                                    star <=
-                                      reviewRating &&
-                                      "fill-gold",
-                                  )}
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <input
-                          value={reviewTitle}
-                          onChange={(event) =>
-                            setReviewTitle(
-                              event.target.value,
-                            )
-                          }
-                          maxLength={100}
-                          placeholder="Review title (optional)"
-                          className="mt-4 h-11 w-full border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-navy"
-                        />
-
-                        <Textarea
-                          value={reviewComment}
-                          onChange={(event) =>
-                            setReviewComment(
-                              event.target.value,
-                            )
-                          }
-                          className="mt-3 min-h-28 resize-none rounded-none border-border"
-                          maxLength={1000}
-                          placeholder="Tell us about your experience with this piece"
-                        />
-
-                        <div className="mt-2 flex items-center justify-between gap-4">
-                          <span className="text-[10px] text-muted-foreground">
-                            {reviewComment.length}/1000
-                          </span>
-
-                          <Button
-                            type="submit"
-                            disabled={
-                              createReviewMutation.isPending ||
-                              !reviewComment.trim()
-                            }
-                            className="rounded-none bg-navy px-6 text-[10px] uppercase tracking-[0.16em] hover:bg-navy/90"
-                          >
-                            {createReviewMutation.isPending
-                              ? "Submitting…"
-                              : "Submit review"}
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                  </form>
                 </div>
               </div>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+
+              {!isAuthenticated ? (
+                <div className="mt-5 border border-border/60 bg-blush/15 p-5">
+                  <p className="text-sm">
+                    Sign in to share your experience.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setAuthOpen(true)}
+                    className="mt-3 text-[10px] uppercase tracking-[0.18em] text-gold"
+                  >
+                    Sign in
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-6">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Your rating
+                    </p>
+
+                    <div className="mt-2 flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() =>
+                            setReviewRating(star)
+                          }
+                          aria-label={`${star} stars`}
+                          className="p-1 text-gold transition-transform hover:scale-110"
+                        >
+                          <Star
+                            className={cn(
+                              "size-5",
+                              star <=
+                              reviewRating &&
+                              "fill-gold",
+                            )}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <input
+                    value={reviewTitle}
+                    onChange={(event) =>
+                      setReviewTitle(
+                        event.target.value,
+                      )
+                    }
+                    maxLength={100}
+                    placeholder="Review title (optional)"
+                    className="mt-4 h-11 w-full border border-border bg-background px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-navy"
+                  />
+
+                  <Textarea
+                    value={reviewComment}
+                    onChange={(event) =>
+                      setReviewComment(
+                        event.target.value,
+                      )
+                    }
+                    className="mt-3 min-h-28 resize-none rounded-none border-border"
+                    maxLength={1000}
+                    placeholder="Tell us about your experience with this piece"
+                  />
+
+                  <div className="mt-2 flex items-center justify-between gap-4">
+                    <span className="text-[10px] text-muted-foreground">
+                      {reviewComment.length}/1000
+                    </span>
+
+                    <Button
+                      type="submit"
+                      disabled={
+                        createReviewMutation.isPending ||
+                        !reviewComment.trim()
+                      }
+                      className="rounded-none bg-navy px-6 text-[10px] uppercase tracking-[0.16em] hover:bg-navy/90"
+                    >
+                      {createReviewMutation.isPending
+                        ? "Submitting…"
+                        : "Submit review"}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </form>
+
+            <div className="mt-10 border-t border-border/50 pt-8">
+              {reviewsLoading ? (
+                <p className="text-sm text-muted-foreground">
+                  Loading reviews…
+                </p>
+              ) : reviews.length === 0 ? (
+                <div className="border border-dashed border-border/70 px-5 py-10 text-center">
+                  <MessageSquare className="mx-auto size-5 text-gold" />
+                  <p className="mt-3 font-display text-xl">
+                    Be the first to share
+                  </p>
+                  <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+                    Your experience can help another customer choose their piece.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-7">
+                  {reviews.map((review) => (
+                    <article key={review.id} className="border-b border-border/50 pb-7 last:border-0 last:pb-0">
+                      <div className="flex items-start justify-between gap-5">
+                        <div>
+                          <p className="text-sm font-medium">{review.user?.name || "Customer"}</p>
+                          <p className="mt-1 text-[10px] uppercase tracking-[0.13em] text-muted-foreground">
+                            Verified customer
+                          </p>
+                        </div>
+                        <RatingStars value={review.rating} size="size-3.5" />
+                      </div>
+                      {review.title && <p className="mt-4 font-medium">{review.title}</p>}
+                      {review.comment && (
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                          {review.comment}
+                        </p>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* ------------------------------------------------------------------ */}
       {/* Related products                                                    */}
       {/* ------------------------------------------------------------------ */}
-      {related.length > 0 && (
-        <section className="mt-16 border-t border-border/50 pt-10 sm:mt-20 sm:pt-12">
-          <div className="flex items-end justify-between gap-5">
-            <div>
-              <p className="eyebrow text-gold">
-                Curated for you
-              </p>
+      {
+        related.length > 0 && (
+          <section className="mt-16 border-t border-border/50 pt-10 sm:mt-20 sm:pt-12">
+            <div className="flex items-end justify-between gap-5">
+              <div>
+                <p className="eyebrow text-gold">
+                  Curated for you
+                </p>
 
-              <h2 className="mt-2 font-display text-3xl">
-                You may also love
-              </h2>
+                <h2 className="mt-2 font-display text-3xl">
+                  You may also love
+                </h2>
+              </div>
+
+              <Link
+                to={
+                  categorySlug
+                    ? `/category/${categorySlug}`
+                    : "/products"
+                }
+                className="hidden text-[10px] uppercase tracking-[0.18em] text-gold sm:block"
+              >
+                View collection
+              </Link>
             </div>
 
-            <Link
-              to={
-                categorySlug
-                  ? `/category/${categorySlug}`
-                  : "/products"
-              }
-              className="hidden text-[10px] uppercase tracking-[0.18em] text-gold sm:block"
-            >
-              View collection
-            </Link>
-          </div>
+            <div className="gold-rule mt-4" />
 
-          <div className="gold-rule mt-4" />
-
-          <div className="mt-8 grid grid-cols-2 gap-x-5 gap-y-10 md:grid-cols-4">
-            {related.map((relatedProduct, index) => (
-              <ProductCard
-                key={relatedProduct.id}
-                product={relatedProduct}
-                index={index}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+            <div className="mt-8 grid grid-cols-2 gap-x-5 gap-y-10 md:grid-cols-4">
+              {related.map((relatedProduct, index) => (
+                <ProductCard
+                  key={relatedProduct.id}
+                  product={relatedProduct}
+                  index={index}
+                />
+              ))}
+            </div>
+          </section>
+        )
+      }
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import type { Context } from "hono";
+import { z } from "zod";
 
 import * as service from "./service";
+import * as shippingService from "../shipping/service";
 
 import {
   analyticsQuerySchema,
@@ -293,6 +295,51 @@ export const dashboard = async (
   );
 };
 
+/* -------------------------------------------------------------------------- */
+/* Shipping – Delhivery integration                                          */
+/* -------------------------------------------------------------------------- */
+
+export const createShipment = async (c: Context) => {
+  const id = c.req.param("id");
+  if (!id) throw new Error("id is required");
+  return successResponse(
+    c,
+    await shippingService.createShipmentForOrder(id),
+    "Delhivery shipment created",
+    201,
+  );
+};
+
+const updateShipmentBodySchema = z.object({
+  courier: z.string().trim().min(1).optional(),
+  waybill: z.string().trim().min(1).optional(),
+  shippingStatus: z.string().trim().min(1).optional(),
+  trackingUrl: z.string().url().optional(),
+});
+
+export const updateShipment = async (c: Context) => {
+  const id = c.req.param("id");
+  if (!id) throw new Error("id is required");
+  const input = updateShipmentBodySchema.parse(await c.req.json());
+  return successResponse(
+    c,
+    await shippingService.updateShipmentForOrder(id, input),
+    "Shipment details updated",
+  );
+};
+
+export const trackOrder = async (c: Context) => {
+  const id = c.req.param("id");
+  if (!id) throw new Error("id is required");
+  return successResponse(c, await shippingService.trackOrder(id));
+};
+
+export const getPackingSlip = async (c: Context) => {
+  const id = c.req.param("id");
+  if (!id) throw new Error("id is required");
+  return successResponse(c, await shippingService.getPackingSlipUrl(id));
+};
+
 export const analytics = async (
   c: Context,
 ) => {
@@ -303,5 +350,23 @@ export const analytics = async (
         c.req.query(),
       ),
     ),
+  );
+};
+
+export const dispatchInternational = async (c: Context) => {
+  const id = c.req.param("id");
+  if (!id) throw new Error("id is required");
+  const input = z.object({
+    courier: z.string().trim().min(2).max(50),
+    waybill: z.string().trim().min(2).max(100),
+    trackingUrl: z.string().url().optional(),
+  }).parse(await c.req.json());
+  return successResponse(
+    c,
+    await shippingService.updateShipmentForOrder(id, {
+      ...input,
+      shippingStatus: "DISPATCHED",
+    }),
+    "International shipment dispatched",
   );
 };

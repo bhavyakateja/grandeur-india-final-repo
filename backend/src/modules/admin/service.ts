@@ -9,6 +9,7 @@ import cloudinary from "../../config/cloudinary";
 import { cache, CacheKeys } from "../redis";
 import { razorpayProvider } from "../payment/providers/razorpay";
 import { env } from "../../config/env";
+import { logger } from "../../config/logger";
 import type {
   AttachProductImagesInput,
 } from "./schema";
@@ -186,6 +187,28 @@ export async function changeOrderStatus(
 
   await cache.remove(CacheKeys.product("*"));
 
+  /**
+   * Auto-create Delhivery shipment when an order moves to SHIPPED.
+   *
+   * Domestic orders: trigger Delhivery B2C manifesting automatically.
+   * International orders: skip (admin sets waybill manually).
+   *
+   * This is intentionally non-fatal: if Delhivery is unavailable or the
+   * order already has a waybill, the status transition still succeeds.
+   */
+  if (next === OrderStatus.SHIPPED && !order.isInternational) {
+    try {
+      const { createShipmentForOrder } = await import("../shipping/service");
+      await createShipmentForOrder(id);
+    } catch (err) {
+      // Log but do not block the status update
+      logger.warn(
+        { err, orderId: id },
+        "Auto-create Delhivery shipment failed; admin can retry via the shipping panel",
+      );
+    }
+  }
+
   return updated;
 }
 
@@ -229,14 +252,18 @@ export async function getDashboard() {
 export async function getAnalytics(
   query: AnalyticsQuery,
 ) {
-  const to = query.to ?? new Date();
+  const to = query.to
+    ? new Date(query.to)
+    : new Date();
+  to.setUTCHours(23, 59, 59, 999);
 
-  const from =
-    query.from ??
-    new Date(
+  const from = query.from
+    ? new Date(query.from)
+    : new Date(
       to.getTime() -
       29 * 24 * 60 * 60 * 1000,
     );
+  from.setUTCHours(0, 0, 0, 0);
 
   const [
     kpis,
@@ -244,14 +271,14 @@ export async function getAnalytics(
     topProducts,
     statusCounts,
   ] = await Promise.all([
-    repository.dashboardKpis(),
+    repository.dashboardKpis(from, to),
     repository.salesByDay(from, to),
     repository.topSellingProducts(
       from,
       to,
       20,
     ),
-    repository.orderStatusCounts(),
+    repository.orderStatusCounts(from, to),
   ]);
 
   return {
@@ -510,24 +537,40 @@ export async function refundPayment(
     );
   }
 
-  // Convert Decimal rupees to integer paise without floating-point arithmetic.
-  const amountStr = payment.amount.toFixed(2);
-  const [whole, fractional = ""] = amountStr.split(".");
-  const paise = Number(BigInt(whole!) * 100n + BigInt(`${fractional}00`.slice(0, 2)));
+  const metadata =
+    payment.metadata && typeof payment.metadata === "object"
+      ? payment.metadata as Record<string, unknown>
+      : {};
+  const paymentAmount = Number(payment.amount);
+  const refundedAmount = typeof metadata.refundedAmount === "number"
+    ? metadata.refundedAmount
+    : 0;
+  const remainingAmount = Math.max(0, paymentAmount - refundedAmount);
+  const amount = input.amount ?? remainingAmount;
 
+  if (!Number.isFinite(amount) || amount <= 0 || amount > remainingAmount) {
+    throw new BadRequestException(
+      `Refund amount must be greater than 0 and no more than ${remainingAmount.toFixed(2)}`,
+    );
+  }
+
+  const amountPaise = Math.round(amount * 100);
   await razorpayProvider.refund(
     payment.providerPaymentId,
-    paise,
+    amountPaise,
   );
 
+  const isFullRefund = Math.abs(amount - remainingAmount) < 0.005;
   const cancelOrder =
-    payment.order.status !== OrderStatus.SHIPPED;
+    isFullRefund && payment.order.status !== OrderStatus.SHIPPED;
 
   const result =
     await repository.markRefunded(
       payment.id,
       payment.order.id,
       cancelOrder,
+      refundedAmount + amount,
+      isFullRefund,
     );
 
   return {
@@ -599,9 +642,9 @@ export async function uploadProductImage(
           if (error || !result) {
             reject(
               error ??
-                new Error(
-                  "Cloudinary upload failed",
-                ),
+              new Error(
+                "Cloudinary upload failed",
+              ),
             );
             return;
           }

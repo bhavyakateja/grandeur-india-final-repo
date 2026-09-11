@@ -4,9 +4,9 @@ import {
   Phone,
   MapPin,
   ArrowUpRight,
-  Camera,
-  MessageCircle,
+  Sparkles,
 } from "lucide-react";
+import { FaInstagram, FaWhatsapp, FaFacebookF } from "react-icons/fa";
 import logo from "@/assets/grandeur-logo.png";
 import { useCategories } from "@/hooks/use-api";
 
@@ -39,19 +39,25 @@ export function SiteFooter() {
               and manage your orders securely through your account.
             </p>
             
-            {/* Social Links with redirection URLs */}
-            <div className="mt-7 flex gap-2">
+            {/* Social Links with React Icons */}
+            <div className="mt-7 flex gap-3">
               <SocialLink
                 label="Instagram"
-                href="https://instagram.com/grandeur"
+                href="https://instagram.com/_grandeurindia"
               >
-                <Camera className="size-4" />
+                <FaInstagram className="size-4" />
+              </SocialLink>
+              <SocialLink
+                label="WhatsApp"
+                href="https://wa.me/919876543210?text=Hello%20Grandeur,%20I%20would%20like%20to%20know%20more%20about%20your%20jewellery%20collection."
+              >
+                <FaWhatsapp className="size-4" />
               </SocialLink>
               <SocialLink
                 label="Facebook"
                 href="https://facebook.com/yourusername"
               >
-                <MessageCircle className="size-4" />
+                <FaFacebookF className="size-4" />
               </SocialLink>
             </div>
           </div>
@@ -106,21 +112,36 @@ export function SiteFooter() {
                   Contact support
                 </Link>
               </li>
-              <li className="flex items-center gap-3">
-                <Mail className="size-4 shrink-0 text-[#c89a4b]" />
-                <Link to="/contact" className="hover:text-[#102650]">
-                  Email support
-                </Link>
-              </li>
             </ul>
           </div>
         </div>
 
         {/* Footer Bottom Bar */}
         <div className="mt-16 border-t border-[#102650]/10 pt-7 text-[10px] text-[#102650]/45">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <p>© {new Date().getFullYear()} Grandeur India. All rights reserved.</p>
-            <div className="flex gap-5">
+            
+            {/* Unique Developer Credit Badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#102650]/10 bg-[#102650]/[0.02] px-4 py-1.5 transition-colors hover:border-[#c89a4b]/40">
+              <Sparkles className="size-3 text-[#c89a4b]" />
+              <span>Crafted & Scaled by</span>
+              <a
+                href="https://adgrowthpartners.netlify.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-[#102650] underline underline-offset-4 decoration-[#c89a4b]/60 transition hover:text-[#c89a4b]"
+              >
+                AdGrowthPartner
+              </a>
+            </div>
+
+            <div className="flex flex-wrap gap-5">
+              <Link to="/privacy-policy" className="hover:text-[#102650]">
+                Privacy Policy
+              </Link>
+              <Link to="/terms-conditions" className="hover:text-[#102650]">
+                Terms & Conditions
+              </Link>
               <Link to="/contact" className="hover:text-[#102650]">
                 Support
               </Link>
@@ -152,7 +173,6 @@ function FooterColumn({
   );
 }
 
-// Updated SocialLink Component
 function SocialLink({
   label,
   href,

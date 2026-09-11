@@ -3,6 +3,8 @@ import crypto from "node:crypto";
 import Razorpay from "razorpay";
 
 import { env } from "../../../config/env";
+import { logger } from "../../../config/logger";
+import { BadRequestException } from "../../../exceptions/BadRequestException";
 import { InternalServerException } from "../../../exceptions/InternalServerException";
 
 import type {
@@ -27,6 +29,8 @@ export const razorpayProvider: PaymentGateway = {
       const order = await getClient().orders.create({
         amount: data.amount,
         currency: data.currency,
+        receipt: data.receipt,
+        notes: data.notes,
       });
 
       return {
@@ -34,7 +38,8 @@ export const razorpayProvider: PaymentGateway = {
         amount: Number(order.amount),
         currency: order.currency,
       };
-    } catch {
+    } catch (error) {
+      logger.error({ err: error }, "Failed to create Razorpay order");
       throw new InternalServerException(
         "Unable to create Razorpay order",
       );
@@ -85,6 +90,26 @@ export const razorpayProvider: PaymentGateway = {
     }
   },
 
+  async capture(
+    paymentId: string,
+    amountPaise: number,
+    currency: string = "INR",
+  ): Promise<unknown> {
+    try {
+      return await getClient().payments.capture(
+        paymentId,
+        amountPaise,
+        currency,
+      );
+    } catch (error) {
+      logger.error(
+        { err: error, paymentId, amountPaise },
+        "Razorpay payment capture failed",
+      );
+      throw new BadRequestException("Unable to capture payment");
+    }
+  },
+
   async refund(
     paymentId: string,
     amountPaise?: number,
@@ -96,10 +121,19 @@ export const razorpayProvider: PaymentGateway = {
           amount: amountPaise,
         },
       );
-    } catch {
-      throw new InternalServerException(
-        "Unable to process Razorpay refund",
+    } catch (error) {
+      logger.error(
+        { err: error, paymentId },
+        "Razorpay refund failed",
       );
+      const description =
+        error && typeof error === "object" && "error" in error &&
+          error.error && typeof error.error === "object" &&
+          "description" in error.error &&
+          typeof error.error.description === "string"
+          ? error.error.description
+          : "Unable to process Razorpay refund";
+      throw new BadRequestException(description);
     }
   },
 };
