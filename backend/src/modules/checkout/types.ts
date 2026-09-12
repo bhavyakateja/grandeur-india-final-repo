@@ -29,4 +29,7 @@ export interface CheckoutResponse {
   shipping: Prisma.Decimal;
   tax: Prisma.Decimal;
   total: Prisma.Decimal;
+  courier?: string;
+  transitDays?: number;
+  estimatedDelivery?: string;
 }

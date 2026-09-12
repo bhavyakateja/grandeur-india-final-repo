@@ -3,6 +3,7 @@ import { Prisma, ProductStatus } from "../../generated/prisma/client";
 import * as repository from "./repository";
 import * as couponService from "../coupon/service";
 import * as settingsService from "../settings/service";
+import * as shippingService from "../shipping/service";
 
 import { NotFoundException } from "../../exceptions/NotFoundException";
 import { BadRequestException } from "../../exceptions/BadRequestException";
@@ -110,22 +111,40 @@ export async function checkout(
   /*
    * Shipping
    *
-   * For India (domestic): Delhivery-backed standard rate or free over threshold.
+   * For India (domestic): Dynamic Blue Dart shipping rate or free over threshold.
    * For International: Admin-configured international shipping charge.
    */
   const amountAfterDiscount = subtotal.minus(
     discount,
   );
 
-  const shipping = isInternational
-    ? new Prisma.Decimal(settings.defaultShippingCharge)
-    : amountAfterDiscount.gte(
-        settings.freeShippingThreshold,
-      )
-      ? new Prisma.Decimal(0)
-      : new Prisma.Decimal(
-          settings.defaultShippingCharge,
-        );
+  let shipping = new Prisma.Decimal(settings.defaultShippingCharge);
+  let transitDays: number | undefined;
+  let estimatedDelivery: string | undefined;
+  let courier: string | undefined;
+
+  if (isInternational) {
+    shipping = new Prisma.Decimal(settings.defaultShippingCharge);
+  } else {
+    courier = "BLUEDART";
+    // Total package weight: estimated 500g for first item + 250g for additional units
+    const totalUnits = cart.items.reduce((sum, item) => sum + item.quantity, 0);
+    const weightGrams = 500 + Math.max(0, totalUnits - 1) * 250;
+
+    const rateResult = await shippingService.calculateShippingRate({
+      pincode: address.postalCode,
+      weightGrams,
+    });
+
+    transitDays = rateResult.transitDays;
+    estimatedDelivery = rateResult.estimatedDelivery;
+
+    if (amountAfterDiscount.gte(settings.freeShippingThreshold)) {
+      shipping = new Prisma.Decimal(0);
+    } else {
+      shipping = new Prisma.Decimal(rateResult.rate > 0 ? rateResult.rate : settings.defaultShippingCharge);
+    }
+  }
 
   /*
    * Tax
@@ -155,6 +174,9 @@ export async function checkout(
     shipping: pricing.shipping,
     tax: pricing.tax,
     total: pricing.total,
+    courier,
+    transitDays,
+    estimatedDelivery,
   };
 }
 

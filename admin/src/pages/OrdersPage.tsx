@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Eye, Package, Truck, ExternalLink, RefreshCw, Search, Printer, Globe } from "lucide-react";
 import { adminApi, type AdminOrder, type OrderStatus, type ShippingInfo } from "@/lib/admin-api";
 import { useDebounce } from "@/lib/use-debounce";
@@ -124,6 +124,20 @@ function ShippingPanel({ order, onOrderUpdated }: { order: AdminOrder; onOrderUp
     }
   };
 
+  const cancelShipment = async () => {
+    if (!confirm("Are you sure you want to cancel this Blue Dart waybill?")) return;
+    try {
+      setBusy(true);
+      setError("");
+      await adminApi.cancelShipment(order.id);
+      onOrderUpdated({ ...order, shippingStatus: "CANCELLED" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to cancel shipment");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <section className="rounded-xl border bg-card p-5 space-y-4">
       <div className="flex items-center justify-between">
@@ -134,7 +148,7 @@ function ShippingPanel({ order, onOrderUpdated }: { order: AdminOrder; onOrderUp
             <Truck className="size-4 text-emerald-600" />
           )}
           <h2 className="font-semibold">
-            {isInternational ? "International Shipping" : "Delhivery B2C"}
+            {isInternational ? "International Shipping" : "Blue Dart Express"}
           </h2>
         </div>
         {order.shippingStatus && (
@@ -178,11 +192,11 @@ function ShippingPanel({ order, onOrderUpdated }: { order: AdminOrder; onOrderUp
             className="gap-1.5"
           >
             <Package className="size-3.5" />
-            {busy ? "Creating…" : "Create Delhivery Shipment"}
+            {busy ? "Creating…" : "Create Blue Dart Shipment"}
           </Button>
         )}
 
-        {hasWaybill && order.courier === "DELHIVERY" && (
+        {hasWaybill && (order.courier === "BLUEDART" || order.courier === "DELHIVERY") && (
           <>
             <Button
               size="sm"
@@ -204,6 +218,17 @@ function ShippingPanel({ order, onOrderUpdated }: { order: AdminOrder; onOrderUp
               <Printer className="size-3.5" />
               Packing Slip
             </Button>
+            {order.shippingStatus !== "CANCELLED" && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={cancelShipment}
+                className="gap-1.5 text-destructive hover:bg-destructive/10"
+              >
+                Cancel Shipment
+              </Button>
+            )}
           </>
         )}
 
@@ -297,7 +322,7 @@ function ShippingPanel({ order, onOrderUpdated }: { order: AdminOrder; onOrderUp
 
       {!isInternational && !hasWaybill && order.status !== "SHIPPED" && (
         <p className="text-xs text-muted-foreground">
-          Confirmed domestic orders can be manifested with Delhivery here, or auto-created when moved to <strong>SHIPPED</strong>.
+          Confirmed domestic orders can be manifested with Blue Dart here, or auto-created when moved to <strong>SHIPPED</strong>.
         </p>
       )}
     </section>
@@ -490,7 +515,7 @@ function OrderDetail({
             <p className="mt-2 text-sm text-muted-foreground">
               Move {o.orderNumber} from <strong>{o.status}</strong> to <strong>{pendingStatus}</strong>?
               {pendingStatus === "CANCELLED" && " This may restore the reserved stock."}
-              {pendingStatus === "SHIPPED" && !o.isInternational && " A Delhivery shipment will be auto-created."}
+              {pendingStatus === "SHIPPED" && !o.isInternational && " A Blue Dart shipment will be auto-created."}
             </p>
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="outline" disabled={busy} onClick={() => setPendingStatus(null)}>

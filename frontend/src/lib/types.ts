@@ -182,6 +182,9 @@ export interface CheckoutResponse {
   shipping: number | string;
   tax: number | string;
   total: number | string;
+  courier?: string;
+  transitDays?: number;
+  estimatedDelivery?: string;
 }
 
 export interface CreatePaymentResponse {

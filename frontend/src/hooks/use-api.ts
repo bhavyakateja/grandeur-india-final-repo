@@ -837,6 +837,34 @@ export async function checkShippingServiceability(pincode: string) {
     cod: boolean;
     remarks?: string;
     expectedDeliveryDays?: number;
+    transitDays?: number;
+    estimatedDelivery?: string;
+    availableServices?: string[];
+  };
+}
+
+export async function calculateShippingRate(input: {
+  pincode: string;
+  weightGrams?: number;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+}) {
+  const response = await apiRequest<unknown>("/shipping/calculate-rate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return response as {
+    pincode: string;
+    isServiceable: boolean;
+    rate: number;
+    weightGrams: number;
+    billableWeightGrams: number;
+    transitDays?: number;
+    estimatedDelivery?: string;
+    courier: string;
+    remarks?: string;
   };
 }
 

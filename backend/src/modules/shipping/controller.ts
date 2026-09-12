@@ -1,4 +1,4 @@
-﻿import type { Context } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 import { AppError } from "../../exceptions/AppError";
 import { successResponse } from "../../shared/response";
@@ -14,6 +14,14 @@ const checkPincodeSchema = z.object({
   pincode: z.string().trim().min(1),
 });
 
+const calculateRateSchema = z.object({
+  pincode: z.string().trim().regex(/^\d{6}$/, "Must be a 6-digit Indian pincode"),
+  weightGrams: z.number().int().positive().default(500),
+  lengthCm: z.number().positive().optional(),
+  widthCm: z.number().positive().optional(),
+  heightCm: z.number().positive().optional(),
+});
+
 const updateShipmentSchema = z.object({
   courier: z.string().trim().min(1).optional(),
   waybill: z.string().trim().min(1).optional(),
@@ -27,6 +35,18 @@ const internationalShipmentSchema = z.object({
   trackingUrl: z.string().url().optional(),
 });
 
+const registerPickupSchema = z.object({
+  pickupDate: z.string().optional(),
+  pickupTime: z.string().optional(),
+  packageCount: z.number().int().positive().optional(),
+  weightKg: z.number().positive().optional(),
+  contactPerson: z.string().optional(),
+  contactNumber: z.string().optional(),
+  addressLine1: z.string().optional(),
+  pincode: z.string().optional(),
+  remarks: z.string().optional(),
+});
+
 export const checkPincode = async (c: Context) => {
   const { pincode } = checkPincodeSchema.parse(c.req.query());
   return successResponse(c, await service.checkPincode(pincode));
@@ -35,6 +55,11 @@ export const checkPincode = async (c: Context) => {
 export const checkPincodeParam = async (c: Context) => {
   const pincode = requiredParam(c, "pincode");
   return successResponse(c, await service.checkPincode(pincode));
+};
+
+export const calculateRate = async (c: Context) => {
+  const input = calculateRateSchema.parse(await c.req.json());
+  return successResponse(c, await service.calculateShippingRate(input));
 };
 
 export const trackPublicOrder = async (c: Context) => {
@@ -47,8 +72,36 @@ export const createShipment = async (c: Context) => {
   return successResponse(
     c,
     await service.createShipmentForOrder(id),
-    "Delhivery shipment created",
+    "Blue Dart shipment created",
     201,
+  );
+};
+
+export const cancelShipment = async (c: Context) => {
+  const id = requiredParam(c, "id");
+  return successResponse(
+    c,
+    await service.cancelShipmentForOrder(id),
+    "Blue Dart shipment cancelled",
+  );
+};
+
+export const registerPickup = async (c: Context) => {
+  const id = requiredParam(c, "id");
+  const input = registerPickupSchema.parse(await c.req.json().catch(() => ({})));
+  return successResponse(
+    c,
+    await service.registerPickupForOrder(id, input),
+    "Blue Dart pickup scheduled",
+  );
+};
+
+export const cancelPickup = async (c: Context) => {
+  const token = requiredParam(c, "token");
+  return successResponse(
+    c,
+    await service.cancelPickup(token),
+    "Blue Dart pickup cancelled",
   );
 };
 

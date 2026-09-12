@@ -213,7 +213,7 @@ export async function createFromPayment(
 
           courier:
             snapshot.address.country.trim().toLowerCase() === "india"
-              ? "DELHIVERY"
+              ? "BLUEDART"
               : null,
 
           items: {

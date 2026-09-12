@@ -640,6 +640,20 @@ export default function CheckoutPage() {
                         }
                       />
 
+                      {preview.estimatedDelivery && (
+                        <div className="flex items-center justify-between text-[11px] text-[#102650]/70">
+                          <span>Est. Delivery (Blue Dart)</span>
+                          <span className="font-medium text-[#102650]">
+                            {new Date(preview.estimatedDelivery).toLocaleDateString("en-IN", {
+                              month: "short",
+                              day: "numeric",
+                              weekday: "short",
+                            })}
+                            {preview.transitDays ? ` (${preview.transitDays} days)` : ""}
+                          </span>
+                        </div>
+                      )}
+
                       <div className="border-t border-[#102650]/10 pt-5">
                         <div className="flex items-end justify-between gap-5">
                           <span className="font-display text-xl text-[#102650]">
@@ -911,19 +925,20 @@ export function AddressForm({
     }
 
     let cancelled = false;
-    setServiceability({ loading: true, serviceable: null, message: "Checking Delhivery serviceability..." });
+    setServiceability({ loading: true, serviceable: null, message: "Checking Blue Dart serviceability..." });
     void checkShippingServiceability(form.pincode)
       .then((result) => {
         if (cancelled) return;
+        const etaText = result.transitDays ? ` (${result.transitDays} business days transit)` : "";
         setServiceability({
           loading: false,
           serviceable: result.isServiceable,
-          message: result.remarks ?? (result.isServiceable ? "Delhivery Express delivery available" : "Pincode is not serviceable"),
+          message: result.remarks ?? (result.isServiceable ? `Blue Dart Express delivery available${etaText}` : "Pincode is not serviceable"),
         });
       })
       .catch(() => {
         if (!cancelled) {
-          setServiceability({ loading: false, serviceable: false, message: "Unable to check Delhivery serviceability" });
+          setServiceability({ loading: false, serviceable: false, message: "Unable to check Blue Dart serviceability" });
         }
       });
 

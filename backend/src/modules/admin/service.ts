@@ -188,12 +188,12 @@ export async function changeOrderStatus(
   await cache.remove(CacheKeys.product("*"));
 
   /**
-   * Auto-create Delhivery shipment when an order moves to SHIPPED.
+   * Auto-create Blue Dart shipment when an order moves to SHIPPED.
    *
-   * Domestic orders: trigger Delhivery B2C manifesting automatically.
+   * Domestic orders: trigger Blue Dart manifesting automatically.
    * International orders: skip (admin sets waybill manually).
    *
-   * This is intentionally non-fatal: if Delhivery is unavailable or the
+   * This is intentionally non-fatal: if Blue Dart is unavailable or the
    * order already has a waybill, the status transition still succeeds.
    */
   if (next === OrderStatus.SHIPPED && !order.isInternational) {
@@ -204,7 +204,7 @@ export async function changeOrderStatus(
       // Log but do not block the status update
       logger.warn(
         { err, orderId: id },
-        "Auto-create Delhivery shipment failed; admin can retry via the shipping panel",
+        "Auto-create Blue Dart shipment failed; admin can retry via the shipping panel",
       );
     }
   }

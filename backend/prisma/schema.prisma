@@ -271,7 +271,7 @@ model Order {
   country      String
   postalCode   String
 
-  // Shipping & Logistics (Delhivery / International)
+  // Shipping & Logistics (Blue Dart / International)
   courier         String?
   waybill         String?
   shippingStatus  String?

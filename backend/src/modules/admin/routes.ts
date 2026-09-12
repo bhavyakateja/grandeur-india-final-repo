@@ -115,8 +115,28 @@ adminRouter.post(
 );
 
 adminRouter.post(
+  "/orders/:id/ship-bluedart",
+  controller.createShipment,
+);
+
+adminRouter.post(
   "/orders/:id/ship-delhivery",
   controller.createShipment,
+);
+
+adminRouter.post(
+  "/orders/:id/cancel-shipment",
+  controller.cancelShipment,
+);
+
+adminRouter.post(
+  "/orders/:id/register-pickup",
+  controller.registerPickup,
+);
+
+adminRouter.post(
+  "/orders/:id/cancel-pickup/:token",
+  controller.cancelPickup,
 );
 
 adminRouter.patch(
@@ -141,6 +161,11 @@ adminRouter.get(
 
 adminRouter.get(
   "/orders/:id/packing-slip",
+  controller.getPackingSlip,
+);
+
+adminRouter.get(
+  "/orders/:id/shipping-label",
   controller.getPackingSlip,
 );
 

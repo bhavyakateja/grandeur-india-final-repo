@@ -1,15 +1,27 @@
-﻿import { prisma } from "../../db/prisma";
+import { prisma } from "../../db/prisma";
 import { BadRequestException } from "../../exceptions/BadRequestException";
 import { NotFoundException } from "../../exceptions/NotFoundException";
 import { logger } from "../../config/logger";
-import { delhiveryClient } from "./delhivery.client";
+import {
+  blueDartClient,
+  type ShippingRateInput,
+  type PickupRegistrationInput,
+} from "./bluedart.client";
 
 /* -------------------------------------------------------------------------- */
 /* Pincode serviceability                                                      */
 /* -------------------------------------------------------------------------- */
 
 export async function checkPincode(pincode: string) {
-  return delhiveryClient.checkPincode(pincode);
+  return blueDartClient.checkServiceability(pincode);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shipping Rate Calculation (Dynamic Backend Source of Truth)                */
+/* -------------------------------------------------------------------------- */
+
+export async function calculateShippingRate(input: ShippingRateInput) {
+  return blueDartClient.calculateRate(input);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -39,11 +51,12 @@ export async function createShipmentForOrder(orderId: string) {
       waybill: order.waybill,
       shippingStatus: order.shippingStatus,
       trackingUrl: order.trackingUrl,
+      courier: order.courier,
       alreadyCreated: true,
     };
   }
 
-  const result = await delhiveryClient.createShipment({
+  const result = await blueDartClient.generateWaybill({
     orderNumber: order.orderNumber,
     fullName: order.fullName,
     phone: order.phone ?? "",
@@ -62,11 +75,11 @@ export async function createShipmentForOrder(orderId: string) {
     })),
   });
 
-  if (!result.success) {
-    throw new BadRequestException(result.message ?? "Failed to create Delhivery shipment");
+  if (!result.success || !result.waybill) {
+    throw new BadRequestException(result.message ?? "Failed to create Blue Dart shipment");
   }
 
-  const trackingUrl = `https://www.delhivery.com/track/package/${encodeURIComponent(result.waybill)}`;
+  const trackingUrl = `https://www.bluedart.com/tracking?handler=waybill&action=track&track=${encodeURIComponent(result.waybill)}`;
 
   const updated = await prisma.order.update({
     where: { id: orderId },
@@ -75,18 +88,97 @@ export async function createShipmentForOrder(orderId: string) {
       waybill: result.waybill,
       shippingStatus: "MANIFESTED",
       trackingUrl,
-      courier: "DELHIVERY",
+      courier: "BLUEDART",
     },
   });
 
-  logger.info({ orderId, waybill: result.waybill }, "Delhivery shipment created");
+  logger.info({ orderId, waybill: result.waybill }, "Blue Dart shipment created");
 
   return {
     waybill: updated.waybill,
     shippingStatus: updated.shippingStatus,
     trackingUrl: updated.trackingUrl,
+    courier: updated.courier,
     alreadyCreated: false,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shipment Cancellation                                                       */
+/* -------------------------------------------------------------------------- */
+
+export async function cancelShipmentForOrder(orderId: string) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) throw new NotFoundException("Order not found");
+
+  if (!order.waybill) {
+    throw new BadRequestException("No shipment waybill found for this order");
+  }
+
+  const result = await blueDartClient.cancelWaybill(order.waybill);
+  if (!result.success) {
+    throw new BadRequestException(result.message || "Failed to cancel Blue Dart waybill");
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      shippingStatus: "CANCELLED",
+    },
+  });
+
+  logger.info({ orderId, waybill: order.waybill }, "Blue Dart shipment cancelled");
+
+  return {
+    success: true,
+    orderId,
+    waybill: order.waybill,
+    shippingStatus: updated.shippingStatus,
+    message: result.message,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Pickup Registration                                                         */
+/* -------------------------------------------------------------------------- */
+
+export async function registerPickupForOrder(orderId: string, input: Partial<PickupRegistrationInput>) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  });
+  if (!order) throw new NotFoundException("Order not found");
+
+  const todayStr = new Date().toISOString().split("T")[0] ?? "";
+  const pickupDate: string = input.pickupDate ?? todayStr;
+  const pickupTime = input.pickupTime || "14:00";
+
+  const result = await blueDartClient.registerPickup({
+    orderNumber: order.orderNumber,
+    pickupDate,
+    pickupTime,
+    packageCount: input.packageCount ?? 1,
+    weightKg: input.weightKg ?? 1.0,
+    contactPerson: input.contactPerson,
+    contactNumber: input.contactNumber,
+    addressLine1: input.addressLine1,
+    pincode: input.pincode,
+    remarks: input.remarks,
+  });
+
+  if (!result.success) {
+    throw new BadRequestException(result.message || "Failed to register Blue Dart pickup");
+  }
+
+  return result;
+}
+
+export async function cancelPickup(tokenNumber: string) {
+  const result = await blueDartClient.cancelPickup(tokenNumber);
+  if (!result.success) {
+    throw new BadRequestException(result.message || "Failed to cancel Blue Dart pickup");
+  }
+  return result;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -149,8 +241,8 @@ export async function trackOrder(orderId: string) {
   }
 
   let tracking = null;
-  if (order.courier === "DELHIVERY" && order.waybill) {
-    tracking = await delhiveryClient.trackShipment(order.waybill);
+  if ((order.courier === "BLUEDART" || order.courier === "DELHIVERY") && order.waybill) {
+    tracking = await blueDartClient.trackShipment(order.waybill);
   }
 
   return {
@@ -175,7 +267,7 @@ export async function trackPublicOrder(orderNumber: string) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Packing slip                                                                */
+/* Packing slip / Label                                                       */
 /* -------------------------------------------------------------------------- */
 
 export async function getPackingSlipUrl(orderId: string) {
@@ -190,6 +282,6 @@ export async function getPackingSlipUrl(orderId: string) {
     throw new BadRequestException("Shipment has not been created for this order yet");
   }
 
-  const slipUrl = await delhiveryClient.getPackingSlip(order.waybill);
+  const slipUrl = blueDartClient.getPackingSlip(order.waybill);
   return { slipUrl };
 }

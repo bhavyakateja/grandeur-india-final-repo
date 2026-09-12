@@ -23,9 +23,15 @@ export const env = createEnv({
     RAZORPAY_KEY_SECRET: z.string().min(1),
     RAZORPAY_WEBHOOK_SECRET: z.string().min(1),
 
-    DELHIVERY_API_TOKEN: z.string().optional(),
-    DELHIVERY_PICKUP_LOCATION: z.string().optional(),
-    DELHIVERY_MODE: z.enum(["staging", "production"]).default("staging"),
+    BLUEDART_LOGIN_ID: z.string().optional(),
+    BLUEDART_LICENCE_KEY: z.string().optional(),
+    BLUEDART_CUSTOMER_CODE: z.string().optional(),
+    BLUEDART_API_TYPE: z.string().default("S"),
+    BLUEDART_ORIGIN_AREA: z.string().default("DEL"),
+    BLUEDART_ORIGIN_PINCODE: z.string().default("110001"),
+    BLUEDART_MODE: z.enum(["staging", "production"]).default("staging"),
+    BLUEDART_PRODUCT_CODE: z.string().default("D"),
+    BLUEDART_SUB_PRODUCT_CODE: z.string().default("P"),
 
     CLOUDINARY_CLOUD_NAME: z.string().min(1),
     CLOUDINARY_API_KEY: z.string().min(1),

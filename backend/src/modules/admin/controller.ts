@@ -296,7 +296,7 @@ export const dashboard = async (
 };
 
 /* -------------------------------------------------------------------------- */
-/* Shipping – Delhivery integration                                          */
+/* Shipping – Blue Dart integration                                          */
 /* -------------------------------------------------------------------------- */
 
 export const createShipment = async (c: Context) => {
@@ -305,8 +305,39 @@ export const createShipment = async (c: Context) => {
   return successResponse(
     c,
     await shippingService.createShipmentForOrder(id),
-    "Delhivery shipment created",
+    "Blue Dart shipment created",
     201,
+  );
+};
+
+export const cancelShipment = async (c: Context) => {
+  const id = c.req.param("id");
+  if (!id) throw new Error("id is required");
+  return successResponse(
+    c,
+    await shippingService.cancelShipmentForOrder(id),
+    "Blue Dart shipment cancelled",
+  );
+};
+
+export const registerPickup = async (c: Context) => {
+  const id = c.req.param("id");
+  if (!id) throw new Error("id is required");
+  const input = await c.req.json().catch(() => ({}));
+  return successResponse(
+    c,
+    await shippingService.registerPickupForOrder(id, input),
+    "Blue Dart pickup scheduled",
+  );
+};
+
+export const cancelPickup = async (c: Context) => {
+  const token = c.req.param("token");
+  if (!token) throw new Error("token is required");
+  return successResponse(
+    c,
+    await shippingService.cancelPickup(token),
+    "Blue Dart pickup cancelled",
   );
 };
 

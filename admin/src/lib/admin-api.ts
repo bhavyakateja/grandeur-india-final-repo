@@ -50,7 +50,7 @@ export interface AdminOrder {
   total: number | string; subtotal?: number | string; shippingCharge?: number | string; shipping?: number | string;
   tax?: number | string; discount?: number | string; createdAt: string; updatedAt?: string; fullName: string; phone?: string;
   addressLine1?: string; addressLine2?: string; city?: string; state?: string; postalCode?: string; country?: string;
-  // Shipping / Delhivery fields
+  // Shipping / Blue Dart fields
   courier?: string | null; waybill?: string | null; shippingStatus?: string | null; trackingUrl?: string | null; isInternational?: boolean;
   user: { id: string; name: string; email: string }; items: AdminOrderItem[];
 }
@@ -134,7 +134,13 @@ export const adminApi = {
   updateOrderStatus: (id: string, status: OrderStatus) =>
     apiRequest<AdminOrder>(`/admin/orders/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   createShipment: (orderId: string) =>
-    apiRequest<ShippingInfo>(`/admin/orders/${orderId}/ship-delhivery`, { method: "POST" }),
+    apiRequest<ShippingInfo>(`/admin/orders/${orderId}/ship-bluedart`, { method: "POST" }),
+  cancelShipment: (orderId: string) =>
+    apiRequest<{ success: boolean; message: string }>(`/admin/orders/${orderId}/cancel-shipment`, { method: "POST" }),
+  registerPickup: (orderId: string, input?: Record<string, unknown>) =>
+    apiRequest<{ success: boolean; tokenNumber?: string; message?: string }>(`/admin/orders/${orderId}/register-pickup`, { method: "POST", body: JSON.stringify(input || {}) }),
+  cancelPickup: (orderId: string, token: string) =>
+    apiRequest<{ success: boolean; message: string }>(`/admin/orders/${orderId}/cancel-pickup/${token}`, { method: "POST" }),
   shipInternational: (orderId: string, input: { courier: string; waybill: string; trackingUrl?: string }) =>
     apiRequest<AdminOrder>(`/admin/orders/${orderId}/ship-international`, { method: "POST", body: JSON.stringify(input) }),
   updateShipment: (orderId: string, input: { courier?: string; waybill?: string; shippingStatus?: string; trackingUrl?: string }) =>
@@ -142,7 +148,7 @@ export const adminApi = {
   trackOrder: (orderId: string, signal?: AbortSignal) =>
     apiRequest<ShippingInfo>(`/admin/orders/${orderId}/shipping-track`, { signal }),
   packingSlip: (orderId: string) =>
-    apiRequest<{ slipUrl: string }>(`/admin/orders/${orderId}/delhivery-slip`),
+    apiRequest<{ slipUrl: string }>(`/admin/orders/${orderId}/shipping-label`),
 
   products: async (params: { page?: number; limit?: number; search?: string; category?: string; status?: ProductStatus; sort?: string }, signal?: AbortSignal) => {
     const response = await apiRequest<{ items: Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/products?${query(params)}`, { signal });
